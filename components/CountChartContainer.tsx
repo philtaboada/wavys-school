@@ -4,33 +4,34 @@ import { createClient } from "@/utils/supabase/server";
 
 const CountChartContainer = async () => {
   const supabase = await createClient();
-  
+
   // Verificamos que el cliente se creó correctamente
   if (!supabase) {
     console.error("No se pudo crear el cliente de Supabase");
     return <div>Error al conectar con la base de datos</div>;
   }
 
-  // Obtenemos el conteo de estudiantes masculinos
   const { count: boys, error: boysError } = await supabase
-    .from('Students')
-    .select('*', { count: 'exact', head: true })
-    .eq('sex', 'MALE');
+  .from('Student')
+  .select('id', { count: 'exact', head: true })
+  .eq('sex', 'MALE');
 
-  // Obtenemos el conteo de estudiantes femeninas
-  const { count: girls, error: girlsError } = await supabase
-    .from('Students')
-    .select('*', { count: 'exact', head: true })
-    .eq('sex', 'FEMALE');
+const { count: girls, error: girlsError } = await supabase
+  .from('Student')
+  .select('id', { count: 'exact', head: true })
+  .eq('sex', 'FEMALE');
 
   // Si hay errores, los mostramos para depuración
   if (boysError) {
     console.error("Error al obtener estudiantes masculinos:", boysError);
   }
-  
+
   if (girlsError) {
     console.error("Error al obtener estudiantes femeninas:", girlsError);
   }
+
+  console.log("boys", boys);
+  console.log("girls", girls);
 
   // Valores predeterminados en caso de error
   const boysCount = boysError ? 0 : boys || 0;

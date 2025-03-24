@@ -8,6 +8,7 @@ interface InputFieldProps {
   type?: string;
   defaultValue?: any;
   hidden?: boolean;
+  textarea?: boolean;
 }
 
 const InputField = ({
