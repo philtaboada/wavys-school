@@ -225,6 +225,7 @@ export const createTeacher = async (
         phone: data.phone || null,
         address: data.address,
         img: data.img || null,
+        imgPath: data.imgPath || null,
         bloodType: data.bloodType,
         sex: data.sex,
         birthday: data.birthday
@@ -283,6 +284,7 @@ export const updateTeacher = async (
         phone: data.phone || null,
         address: data.address,
         img: data.img || null,
+        imgPath: data.imgPath || null,
         bloodType: data.bloodType,
         sex: data.sex,
         birthday: data.birthday
@@ -410,6 +412,7 @@ export const createStudent = async (
         phone: data.phone || null,
         address: data.address,
         img: data.img || null,
+        imgPath: data.imgPath || null,
         bloodType: data.bloodType,
         sex: data.sex,
         birthday: data.birthday,
@@ -457,6 +460,7 @@ export const updateStudent = async (
         phone: data.phone || null,
         address: data.address,
         img: data.img || null,
+        imgPath: data.imgPath || null,
         bloodType: data.bloodType,
         sex: data.sex,
         birthday: data.birthday,

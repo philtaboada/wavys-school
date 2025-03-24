@@ -4,13 +4,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import InputField from "../InputField";
 import Image from "next/image";
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState, useRef } from "react";
 import { teacherSchema, TeacherSchema } from "@/lib/formValidationSchemas";
 import { useFormState } from "react-dom";
 import { createTeacher, updateTeacher } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
-import { CldUploadWidget } from "next-cloudinary";
+
+// Tipo para la imagen con información adicional de la URL firmada
+type ImageInfo = {
+  url: string;
+  path?: string;
+  expiresAt?: string;
+};
 
 const TeacherForm = ({
   type,
@@ -32,7 +38,12 @@ const TeacherForm = ({
     mode: "onChange"
   });
 
-  const [img, setImg] = useState<any>(data?.img ? { secure_url: data.img } : null);
+  // Inicializar estado de imagen con la información de la imagen existente
+  const [img, setImg] = useState<ImageInfo | null>(
+    data?.img ? { url: data.img, path: data.imgPath } : null
+  );
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [state, formAction] = useFormState(
     type === "create" ? createTeacher : updateTeacher,
@@ -43,7 +54,12 @@ const TeacherForm = ({
   );
 
   const onSubmit = handleSubmit((data) => {
-    formAction({ ...data, img: img?.secure_url });
+    // Enviar tanto la URL como la ruta del archivo para futuras referencias
+    formAction({ 
+      ...data, 
+      img: img?.url,
+      imgPath: img?.path
+    });
   });
 
   const router = useRouter();
@@ -58,7 +74,52 @@ const TeacherForm = ({
     }
   }, [state, router, type, setOpen]);
 
+  // Verificar si la URL está expirada y mostrar advertencia
+  useEffect(() => {
+    if (img?.expiresAt) {
+      const expirationDate = new Date(img.expiresAt);
+      if (expirationDate.getTime() < Date.now()) {
+        toast.warning("La URL de la imagen ha expirado. Por favor, sube la imagen nuevamente.");
+        setImg(prev => prev ? { ...prev, url: '' } : null);
+      }
+    }
+  }, [img]);
+
   const { subjects } = relatedData;
+
+  // Función para manejar la carga de imágenes con Google Cloud Storage
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    
+    try {
+      // Crear FormData para enviar el archivo
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Enviar el archivo al endpoint de carga
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar la imagen');
+      }
+      
+      // Ahora recibimos más información de la API, incluida la ruta y la fecha de expiración
+      const { url, path, expiresAt } = await response.json();
+      setImg({ url, path, expiresAt });
+    } catch (error) {
+      console.error('Error cargando imagen:', error);
+      toast.error('Error al cargar la imagen. Por favor, intenta nuevamente.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <form className="flex flex-col gap-6 max-w-4xl mx-auto" onSubmit={onSubmit}>
@@ -229,11 +290,12 @@ const TeacherForm = ({
           </div>
         </div>
         
+        {/* Foto de perfil - Componente para GCS con URLs firmadas */}
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200">
-            {img?.secure_url ? (
+            {img?.url ? (
               <Image 
-                src={img.secure_url} 
+                src={img.url} 
                 alt="Foto de perfil" 
                 width={64} 
                 height={64} 
@@ -244,24 +306,42 @@ const TeacherForm = ({
             )}
           </div>
           
-          <CldUploadWidget
-            uploadPreset={process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET}
-            onSuccess={(result, { widget }) => {
-              setImg(result.info);
-              widget.close();
-            }}
-          >
-            {({ open }) => (
-              <button 
-                type="button"
-                className="py-2 px-4 bg-blue-50 text-blue-600 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-2"
-                onClick={() => open()}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                Subir foto de perfil
-              </button>
+          <div className="flex flex-col gap-2">
+            <input
+              type="file"
+              accept="image/*"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            <button 
+              type="button"
+              className="py-2 px-4 bg-blue-50 text-blue-600 rounded-md text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-2"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Subiendo...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                  Subir foto de perfil
+                </>
+              )}
+            </button>
+            
+            {img?.expiresAt && (
+              <p className="text-xs text-gray-500">
+                URL válida hasta: {new Date(img.expiresAt).toLocaleDateString()}
+              </p>
             )}
-          </CldUploadWidget>
+          </div>
         </div>
       </div>
       
@@ -283,7 +363,7 @@ const TeacherForm = ({
         <button 
           type="submit" 
           className="py-3 px-8 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-all flex items-center justify-center gap-2 font-medium text-base shadow-sm hover:shadow-md disabled:opacity-70 disabled:pointer-events-none min-w-[150px]"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isUploading}
         >
           {isSubmitting ? (
             <>

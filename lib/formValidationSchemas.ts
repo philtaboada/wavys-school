@@ -39,6 +39,7 @@ export const teacherSchema = z.object({
   phone: z.string().optional(),
   address: z.string(),
   img: z.string().optional(),
+  imgPath: z.string().optional(), // Ruta de la imagen en GCS para referencias futuras
   bloodType: z.string().min(1, { message: "Blood Type is required!" }),
   birthday: z.coerce.date({ message: "Birthday is required!" }),
   sex: z.enum(["MALE", "FEMALE"], { message: "Sex is required!" }),
@@ -68,6 +69,7 @@ export const studentSchema = z.object({
   phone: z.string().optional(),
   address: z.string(),
   img: z.string().optional(),
+  imgPath: z.string().optional(), // Ruta de la imagen en GCS para referencias futuras
   bloodType: z.string().min(1, { message: "Blood Type is required!" }),
   birthday: z.coerce.date({ message: "Birthday is required!" }),
   sex: z.enum(["MALE", "FEMALE"], { message: "Sex is required!" }),

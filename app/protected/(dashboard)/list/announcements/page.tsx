@@ -2,23 +2,31 @@ import FormContainer from "@/components/FormContainer";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
-import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import { Announcement, Class, Prisma } from "@prisma/client";
 import Image from "next/image";
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/utils/supabase/server";
 
+type Announcement = {
+  id: number;
+  title: string;
+  description: string;
+  date: Date;
+  classId: number | null;
+};
 
-type AnnouncementList = Announcement & { class: Class };
-const AnnouncementListPage = async ({
-  searchParams,
-}: {
+type SearchParams = {
   searchParams: { [key: string]: string | undefined };
-}) => {
+};
+
+type AnnouncementList = Announcement & { class: { name: string } | null };
+
+const AnnouncementListPage = async ({ searchParams }: SearchParams) => {
+
   
-  const { userId, sessionClaims } = auth();
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
-  const currentUserId = userId;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = (user?.user_metadata as { role?: string })?.role;
+  const currentUserId = user?.id;
   
   const columns = [
     {
@@ -52,7 +60,7 @@ const AnnouncementListPage = async ({
       <td className="flex items-center gap-4 p-4">{item.title}</td>
       <td>{item.class?.name || "-"}</td>
       <td className="hidden md:table-cell">
-        {new Intl.DateTimeFormat("en-US").format(item.date)}
+        {item.date ? new Intl.DateTimeFormat("en-US").format(new Date(item.date)) : "-"}
       </td>
       <td>
         <div className="flex items-center gap-2">
@@ -66,54 +74,40 @@ const AnnouncementListPage = async ({
       </td>
     </tr>
   );
-  const { page, ...queryParams } = searchParams;
 
-  const p = page ? parseInt(page) : 1;
+  const page = searchParams?.page ? parseInt(searchParams.page) : 1;
+  const search = searchParams?.search || "";
 
-  // URL PARAMS CONDITION
+  // Crear consulta con Supabase
+  let query = supabase
+    .from('Announcement')
+    .select('*, Class:Class(*)', { count: 'exact' });
 
-  const query: Prisma.AnnouncementWhereInput = {};
-
-  if (queryParams) {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (value !== undefined) {
-        switch (key) {
-          case "search":
-            query.title = { contains: value, mode: "insensitive" };
-            break;
-          default:
-            break;
-        }
-      }
-    }
+  // Filtros de búsqueda
+  if (search) {
+    query = query.ilike("title", `%${search}%`);
   }
 
-  // ROLE CONDITIONS
+  // Condiciones basadas en roles
+  if (role === 'teacher') {
+    query = query.or(`classId.is.null,class.lessons.teacherId.eq.${currentUserId}`);
+  } else if (role === 'student') {
+    query = query.or(`classId.is.null,class.students.id.eq.${currentUserId}`);
+  } else if (role === 'parent') {
+    query = query.or(`classId.is.null,class.students.parentId.eq.${currentUserId}`);
+  }
 
-  const roleConditions = {
-    teacher: { lessons: { some: { teacherId: currentUserId! } } },
-    student: { students: { some: { id: currentUserId! } } },
-    parent: { students: { some: { parentId: currentUserId! } } },
-  };
+  // Paginación
+  query = query
+    .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
+    .order('id', { ascending: false });
 
-  query.OR = [
-    { classId: null },
-    {
-      class: roleConditions[role as keyof typeof roleConditions] || {},
-    },
-  ];
+  const { data, count, error } = await query;
 
-  const [data, count] = await prisma.$transaction([
-    prisma.announcement.findMany({
-      where: query,
-      include: {
-        class: true,
-      },
-      take: ITEM_PER_PAGE,
-      skip: ITEM_PER_PAGE * (p - 1),
-    }),
-    prisma.announcement.count({ where: query }),
-  ]);
+  if (error) {
+    console.error("Error al obtener anuncios:", error);
+    return <div>Error al cargar los anuncios</div>;
+  }
 
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
@@ -140,7 +134,7 @@ const AnnouncementListPage = async ({
       {/* LIST */}
       <Table columns={columns} renderRow={renderRow} data={data} />
       {/* PAGINATION */}
-      <Pagination page={p} count={count} />
+      <Pagination page={page} count={count ?? 0} />
     </div>
   );
 };
