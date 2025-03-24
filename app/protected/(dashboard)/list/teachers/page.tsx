@@ -2,12 +2,44 @@ import FormContainer from "@/components/FormContainer";
 import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
-import prisma from "@/lib/prisma";
-import { Class, Prisma, Subject, Teacher } from "@prisma/client";
+import { createClient } from '@/utils/supabase/server';
 import Image from "next/image";
 import Link from "next/link";
-import { ITEM_PER_PAGE } from "@/lib/settings";
-import { auth } from "@clerk/nextjs/server";
+
+// Constante para la paginación
+const ITEM_PER_PAGE = 10;
+
+// Tipos para los datos de Supabase
+type Teacher = {
+  id: number;
+  name: string;
+  email: string;
+  username: string;
+  phone: string;
+  address: string;
+  img: string | null;
+};
+
+type Subject = {
+  id: number;
+  name: string;
+};
+
+type Class = {
+  id: number;
+  name: string;
+};
+
+// Definimos interfaces genéricas para los resultados de las consultas
+interface LessonRecord {
+  teacher_id: number;
+  class_id: number;
+}
+
+interface SubjectTeacherRecord {
+  subject_id: number;
+  teacher_id: number;
+}
 
 type TeacherList = Teacher & { subjects: Subject[] } & { classes: Class[] };
 
@@ -16,8 +48,19 @@ const TeacherListPage = async ({
 }: {
   searchParams: { [key: string]: string | undefined };
 }) => {
-  const { sessionClaims } = auth();
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
+  // Crear el cliente de Supabase
+  const supabase = await createClient();
+  
+  // Obtener el usuario actual y su rol
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: userProfile } = await supabase
+    .from('users')
+    .select('role')
+    .eq('auth_id', user?.id)
+    .single();
+  
+  const role = userProfile?.role;
+  
   const columns = [
     {
       header: "Información",
@@ -78,10 +121,10 @@ const TeacherListPage = async ({
       </td>
       <td className="hidden md:table-cell">{item.username}</td>
       <td className="hidden md:table-cell">
-        {item.subjects.map((subject) => subject.name).join(",")}
+        {item.subjects.map((subject: Subject) => subject.name).join(",")}
       </td>
       <td className="hidden md:table-cell">
-        {item.classes.map((classItem) => classItem.name).join(",")}
+        {item.classes.map((classItem: Class) => classItem.name).join(",")}
       </td>
       <td className="hidden md:table-cell">{item.phone}</td>
       <td className="hidden md:table-cell">{item.address}</td>
@@ -93,56 +136,96 @@ const TeacherListPage = async ({
             </button>
           </Link>
           {role === "admin" && (
-            // <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaPurple">
-            //   <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#fff" d="M7 21q-.825 0-1.412-.587T5 19V6q-.425 0-.712-.288T4 5t.288-.712T5 4h4q0-.425.288-.712T10 3h4q.425 0 .713.288T15 4h4q.425 0 .713.288T20 5t-.288.713T19 6v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zm-7 11q.425 0 .713-.288T11 16V9q0-.425-.288-.712T10 8t-.712.288T9 9v7q0 .425.288.713T10 17m4 0q.425 0 .713-.288T15 16V9q0-.425-.288-.712T14 8t-.712.288T13 9v7q0 .425.288.713T14 17M7 6v13z"></path></svg>
-            // </button>
             <FormContainer table="teacher" type="delete" id={item.id} />
           )}
         </div>
       </td>
     </tr>
   );
+  
   const { page, ...queryParams } = searchParams;
-
   const p = page ? parseInt(page) : 1;
-
-  // URL PARAMS CONDITION
-
-  const query: Prisma.TeacherWhereInput = {};
-
-  if (queryParams) {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (value !== undefined) {
-        switch (key) {
-          case "classId":
-            query.lessons = {
-              some: {
-                classId: parseInt(value),
-              },
-            };
-            break;
-          case "search":
-            query.name = { contains: value, mode: "insensitive" };
-            break;
-          default:
-            break;
-        }
-      }
+  
+  // Construir la consulta para Supabase
+  let query = supabase.from('teacher').select('*');
+  
+  // Aplicar filtros basados en searchParams
+  if (queryParams.search) {
+    query = query.ilike('name', `%${queryParams.search}%`);
+  }
+  
+  // Variable para almacenar el total de registros
+  let count = 0;
+  
+  if (queryParams.classId) {
+    // Primero obtenemos las lecciones que corresponden a la clase
+    const { data: lessonsData } = await supabase
+      .from('lesson')
+      .select('teacher_id')
+      .eq('class_id', parseInt(queryParams.classId));
+    
+    if (lessonsData && lessonsData.length > 0) {
+      const teacherIds = lessonsData.map(lesson => lesson.teacher_id);
+      query = query.in('id', teacherIds);
     }
   }
-
-  const [data, count] = await prisma.$transaction([
-    prisma.teacher.findMany({
-      where: query,
-      include: {
-        subjects: true,
-        classes: true,
-      },
-      take: ITEM_PER_PAGE,
-      skip: ITEM_PER_PAGE * (p - 1),
-    }),
-    prisma.teacher.count({ where: query }),
-  ]);
+  
+  // Contar el total de registros para paginación
+  const countResult = await query.count();
+  count = countResult.count || 0;
+  
+  // Obtener los datos paginados
+  const { data: teachersData } = await query
+    .range((p - 1) * ITEM_PER_PAGE, p * ITEM_PER_PAGE - 1);
+  
+  // Para cada profesor, obtener sus asignaturas y clases
+  const data: TeacherList[] = [];
+  
+  if (teachersData) {
+    for (const teacher of teachersData) {
+      // Obtener asignaturas del profesor
+      const { data: subjectsData } = await supabase
+        .from('subject_teacher')
+        .select('subject_id')
+        .eq('teacher_id', teacher.id);
+      
+      const subjectIds = subjectsData?.map(item => item.subject_id) || [];
+      
+      let subjects: Subject[] = [];
+      if (subjectIds.length > 0) {
+        const { data: subjectsInfo } = await supabase
+          .from('subject')
+          .select('id, name')
+          .in('id', subjectIds);
+        
+        subjects = subjectsInfo || [];
+      }
+      
+      // Obtener clases del profesor
+      const { data: lessonsData } = await supabase
+        .from('lesson')
+        .select('class_id')
+        .eq('teacher_id', teacher.id);
+      
+      const classIds = Array.from(new Set(lessonsData?.map(item => item.class_id) || []));
+      
+      let classes: Class[] = [];
+      if (classIds.length > 0) {
+        const { data: classesInfo } = await supabase
+          .from('class')
+          .select('id, name')
+          .in('id', classIds);
+        
+        classes = classesInfo || [];
+      }
+      
+      data.push({
+        ...teacher,
+        subjects,
+        classes
+      } as TeacherList);
+    }
+  }
 
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
