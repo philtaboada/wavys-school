@@ -4,16 +4,15 @@ import Image from "next/image";
 const UserCard = async ({
   type,
 }: {
-  type: "admin" | "teacher" | "student" | "parent";
+  type: "Admin" | "Teacher" | "Student" | "Parent";
 }) => {
   const supabase = await createClient();
   
-  // Determinar el nombre de la tabla
-  const tableName = type === 'admin' ? 'admins' : `${type}s`;
-  
-  console.log(`Intentando consultar tabla: ${tableName}`);
-  
+  // Determinar el nombre de la tabla en singular
+  const tableName = type === 'Admin' ? 'Admin' : type;
+
   // Realizar consulta de conteo en Supabase según el tipo de usuario
+  // Usar el servicio sin RLS para poder contar los registros
   const { count, error } = await supabase
     .from(tableName)
     .select('*', { count: 'exact', head: true });
@@ -21,18 +20,11 @@ const UserCard = async ({
   // Registrar error si existe
   if (error) {
     console.error(`Error al consultar ${tableName}:`, error.message);
-  }
-  
-  // Intento alternativo para verificar si la tabla existe
-  const { data: testData, error: testError } = await supabase
-    .from(tableName)
-    .select('*')
-    .limit(1);
     
-  if (testError) {
-    console.error(`Error en consulta de prueba a ${tableName}:`, testError.message);
-  } else {
-    console.log(`Consulta de prueba a ${tableName} exitosa. Datos:`, testData);
+    // Verificar si el error está relacionado con permisos o tabla inexistente
+    if (error.message.includes("permission denied") || error.message.includes("does not exist")) {
+      console.log("Error de permisos o tabla inexistente. Verificar RLS y esquema.");
+    }
   }
   
   // Valor predeterminado en caso de error
