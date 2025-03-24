@@ -1,6 +1,6 @@
 import Image from "next/image";
 import AttendanceChart from "./AttendanceChart";
-import prisma from "@/lib/prisma";
+import { createClient } from "@/utils/supabase/server";
 
 const AttendanceChartContainer = async () => {
   const today = new Date();
@@ -12,17 +12,13 @@ const AttendanceChartContainer = async () => {
   lastMonday.setDate(today.getDate() - daysSinceMonday);
   lastMonday.setHours(0, 0, 0, 0);
 
-  const resData = await prisma.attendance.findMany({
-    where: {
-      date: {
-        gte: lastMonday,
-      },
-    },
-    select: {
-      date: true,
-      present: true,
-    },
-  });
+  const supabase = await createClient();
+  
+  // Consulta de asistencia con Supabase
+  const { data: resData, error } = await supabase
+    .from('attendance')
+    .select('date, present')
+    .gte('date', lastMonday.toISOString());
 
   // console.log(data)
 
@@ -37,20 +33,23 @@ const AttendanceChartContainer = async () => {
       Fri: { present: 0, absent: 0 },
     };
 
-  resData.forEach((item) => {
-    const itemDate = new Date(item.date);
-    const dayOfWeek = itemDate.getDay();
-    
-    if (dayOfWeek >= 1 && dayOfWeek <= 5) {
-      const dayName = daysOfWeek[dayOfWeek - 1];
+  // Si hay datos y no hay error, procesar los registros de asistencia
+  if (resData && !error) {
+    resData.forEach((item) => {
+      const itemDate = new Date(item.date);
+      const dayOfWeek = itemDate.getDay();
+      
+      if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+        const dayName = daysOfWeek[dayOfWeek - 1];
 
-      if (item.present) {
-        attendanceMap[dayName].present += 1;
-      } else {
-        attendanceMap[dayName].absent += 1;
+        if (item.present) {
+          attendanceMap[dayName].present += 1;
+        } else {
+          attendanceMap[dayName].absent += 1;
+        }
       }
-    }
-  });
+    });
+  }
 
   const data = daysOfWeek.map((day) => ({
     name: day,

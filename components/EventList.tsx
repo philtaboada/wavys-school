@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { createClient } from "@/utils/supabase/server";
 
 const EventList = async ({ dateParam }: { dateParam: string | undefined }) => {
   const date = dateParam ? new Date(dateParam) : new Date();
@@ -10,14 +10,18 @@ const EventList = async ({ dateParam }: { dateParam: string | undefined }) => {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const data = await prisma.event.findMany({
-    where: {
-      startTime: {
-        gte: startOfDay,
-        lte: endOfDay,
-      },
-    },
-  });
+  const supabase = await createClient();
+  
+  // Consulta eventos con Supabase
+  const { data, error } = await supabase
+    .from('event')
+    .select('*')
+    .gte('startTime', startOfDay.toISOString())
+    .lte('startTime', endOfDay.toISOString());
+
+  if (error || !data) {
+    return <div>No hay eventos para mostrar.</div>;
+  }
 
   return data.map((event) => (
     <div
@@ -27,7 +31,7 @@ const EventList = async ({ dateParam }: { dateParam: string | undefined }) => {
       <div className="flex items-center justify-between">
         <h1 className="font-semibold text-gray-600">{event.title}</h1>
         <span className="text-gray-300 text-xs">
-          {event.startTime.toLocaleTimeString("en-UK", {
+          {new Date(event.startTime).toLocaleTimeString("en-UK", {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,

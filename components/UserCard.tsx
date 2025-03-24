@@ -1,4 +1,4 @@
-import prisma from "@/lib/prisma";
+import { createClient } from "@/utils/supabase/server";
 import Image from "next/image";
 
 const UserCard = async ({
@@ -6,14 +6,37 @@ const UserCard = async ({
 }: {
   type: "admin" | "teacher" | "student" | "parent";
 }) => {
-  const modelMap: Record<typeof type, any> = {
-    admin: prisma.admin,
-    teacher: prisma.teacher,
-    student: prisma.student,
-    parent: prisma.parent,
-  };
-
-  const data = await modelMap[type].count();
+  const supabase = await createClient();
+  
+  // Determinar el nombre de la tabla
+  const tableName = type === 'admin' ? 'admins' : `${type}s`;
+  
+  console.log(`Intentando consultar tabla: ${tableName}`);
+  
+  // Realizar consulta de conteo en Supabase según el tipo de usuario
+  const { count, error } = await supabase
+    .from(tableName)
+    .select('*', { count: 'exact', head: true });
+  
+  // Registrar error si existe
+  if (error) {
+    console.error(`Error al consultar ${tableName}:`, error.message);
+  }
+  
+  // Intento alternativo para verificar si la tabla existe
+  const { data: testData, error: testError } = await supabase
+    .from(tableName)
+    .select('*')
+    .limit(1);
+    
+  if (testError) {
+    console.error(`Error en consulta de prueba a ${tableName}:`, testError.message);
+  } else {
+    console.log(`Consulta de prueba a ${tableName} exitosa. Datos:`, testData);
+  }
+  
+  // Valor predeterminado en caso de error
+  const data = error ? 0 : count || 0;
 
   return (
     <div className="rounded-2xl odd:bg-lamaPurple even:bg-lamaYellow p-4 flex-1 min-w-[130px]">

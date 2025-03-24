@@ -53,7 +53,10 @@ export const signInAction = async (formData: FormData) => {
     return encodedRedirect("error", "/sign-in", error.message);
   }
 
-  return redirect("/protected");
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = (user?.user_metadata as { role?: string })?.role;
+
+  return redirect(`/protected/${role}`);
 };
 
 export const forgotPasswordAction = async (formData: FormData) => {
