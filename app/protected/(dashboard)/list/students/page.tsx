@@ -120,7 +120,6 @@ const StudentListPage = async ({
   );
 
   try {
-    // Consulta con Supabase en lugar de Prisma
     let query = supabase
       .from('Student')
       .select(`

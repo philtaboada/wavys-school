@@ -1,4 +1,3 @@
-// import prisma from "@/lib/prisma"; // Eliminamos la importación de prisma
 import BigCalendar from "./BigCalender";
 import { adjustScheduleToCurrentWeek } from "@/lib/utils";
 import { createClient } from "@/utils/supabase/server";
@@ -12,7 +11,6 @@ const BigCalendarContainer = async ({
 }) => {
   const supabase = await createClient();
   
-  // Reemplazamos la consulta de Prisma con Supabase
   const { data: lessons, error } = await supabase
     .from('Lesson')
     .select('*')

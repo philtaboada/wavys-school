@@ -99,13 +99,13 @@ const menuItems = [
       {
         icon: "/profile.png",
         label: "Perfil",
-        href: "/profile",
+        href: "/protected/list/profile",
         visible: ["admin", "teacher", "student", "parent"],
       },
       {
         icon: "/setting.png",
         label: "Configuración",
-        href: "/settings",
+        href: "/protected/list/settings",
         visible: ["admin", "teacher", "student", "parent"],
       },
       {

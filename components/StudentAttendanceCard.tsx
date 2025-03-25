@@ -1,10 +1,8 @@
-// import prisma from "@/lib/prisma"; // Eliminamos la importación de prisma
 import { createClient } from "@/utils/supabase/server";
 
 const StudentAttendanceCard = async ({ id }: { id: string }) => {
   const supabase = await createClient();
   
-  // Reemplazamos la consulta de Prisma con Supabase
   const { data: attendance, error } = await supabase
     .from('Attendance')
     .select('*')

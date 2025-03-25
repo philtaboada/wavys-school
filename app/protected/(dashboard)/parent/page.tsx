@@ -1,24 +1,23 @@
 import Announcements from "@/components/Announcements";
 import BigCalendarContainer from "@/components/BigCalendarContainer";
-import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/utils/supabase/server";
 
 
 const ParentPage = async () => {
-  const { userId } = auth();
-  const currentUserId = userId;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const currentUserId = user?.id;
   
-  const students = await prisma.student.findMany({
-    where: {
-      parentId: currentUserId!,
-    },
-  });
+  const { data: students, error: studentsError } = await supabase
+    .from('Student')
+    .select('*')
+    .eq('parentId', currentUserId!);
 
   return (
     <div className="flex-1 p-4 flex gap-4 flex-col xl:flex-row">
       {/* LEFT */}
       <div className="">
-        {students.map((student) => (
+        {students?.map((student) => (
           <div className="w-full xl:w-2/3" key={student.id}>
             <div className="h-full bg-white p-4 rounded-md">
               <h1 className="text-xl font-semibold">

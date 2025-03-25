@@ -46,7 +46,7 @@ type TeacherList = Teacher & { subjects: Subject[] } & { classes: Class[] };
 export default async function TeacherListPage({
   searchParams,
 }: {
-  searchParams: Promise<{ 
+  searchParams: Promise<{
     page?: string;
     search?: string;
     classId?: string;
@@ -55,17 +55,17 @@ export default async function TeacherListPage({
 }) {
   // Acceder a searchParams de forma asíncrona
   const params = await searchParams;
-  
+
   // Extrae los valores de forma segura
   const pageNum = params.page ? parseInt(params.page, 10) : 1;
   const searchText = params.search || '';
   const classIdParam = params.classId;
 
   console.log('Parametros de busqueda:', pageNum, searchText, classIdParam);
-  
+
   // Crear el cliente de Supabase
   const supabase = await createClient();
-  
+
   // Obtener el usuario actual y su rol
   const { data: { user } } = await supabase.auth.getUser();
   const { data: userProfile } = await supabase
@@ -73,9 +73,9 @@ export default async function TeacherListPage({
     .select('role')
     .eq('auth_id', user?.id)
     .single();
-  
+
   const role = userProfile?.role;
-  
+
   const columns = [
     {
       header: "Información",
@@ -108,11 +108,11 @@ export default async function TeacherListPage({
     },
     ...(role === "admin"
       ? [
-          {
-            header: "Acciones",
-            accessor: "action",
-          },
-        ]
+        {
+          header: "Acciones",
+          accessor: "action",
+        },
+      ]
       : []),
   ];
 
@@ -145,9 +145,9 @@ export default async function TeacherListPage({
       <td className="hidden md:table-cell">{item.address}</td>
       <td>
         <div className="flex items-center gap-2">
-          <Link href={`/list/teachers/${item.id}`}>
-            <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaSky">
-              <svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24"><path fill="white" d="m14.06 9.02l.92.92L5.92 19H5v-.92zM17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83l3.75 3.75l1.83-1.83a.996.996 0 0 0 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29m-3.6 3.19L3 17.25V21h3.75L17.81 9.94z"></path></svg>
+          <Link href={`/protected/list/teachers/${item.id}`}>
+            <button className="w-7 h-7 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#000" d="M12 9a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5a5 5 0 0 1 5-5a5 5 0 0 1 5 5a5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
             </button>
           </Link>
           {role === "admin" && (
@@ -157,7 +157,7 @@ export default async function TeacherListPage({
       </td>
     </tr>
   );
-  
+
   // Obtener los datos usando la función rpc simplificada
   const { data: functionResult, error: teachersError } = await supabase.rpc('get_teacher_list_simple', {
     p_search_text: searchText || null,
@@ -181,7 +181,7 @@ export default async function TeacherListPage({
       classes: []
     }));
     count = functionResult.total_count || 0;
-    
+
     // Si llegamos aquí y tenemos datos básicos, podemos intentar
     // obtener subjects y classes por separado
     if (data.length > 0) {
@@ -191,32 +191,32 @@ export default async function TeacherListPage({
           .from('Lesson')
           .select('subjectId')
           .eq('teacherId', teacher.id);
-        
+
         const subjectIds = Array.from(new Set(lessonsSubjectsData?.map(item => item.subjectId) || []));
-        
+
         if (subjectIds.length > 0) {
           const { data: subjectsInfo } = await supabase
             .from('Subject')
             .select('id, name')
             .in('id', subjectIds);
-          
+
           teacher.subjects = subjectsInfo || [];
         }
-        
+
         // Obtener clases del profesor
         const { data: lessonsData } = await supabase
           .from('Lesson')
           .select('classId')
           .eq('teacherId', teacher.id);
-        
+
         const classIds = Array.from(new Set(lessonsData?.map(item => item.classId) || []));
-        
+
         if (classIds.length > 0) {
           const { data: classesInfo } = await supabase
             .from('Class')
             .select('id, name')
             .in('id', classIds);
-          
+
           teacher.classes = classesInfo || [];
         }
       }
@@ -230,14 +230,14 @@ export default async function TeacherListPage({
     if (searchText) {
       query = query.ilike('name', `%${searchText}%`);
     }
-    
+
     if (classIdParam) {
       // Primero obtenemos las lecciones que corresponden a la clase
       const { data: lessonsData } = await supabase
         .from('Lesson')
         .select('teacherId')
         .eq('classId', parseInt(classIdParam));
-      
+
       if (lessonsData && lessonsData.length > 0) {
         const teacherIds = lessonsData.map(lesson => lesson.teacherId);
         query = query.in('id', teacherIds);
@@ -267,15 +267,15 @@ export default async function TeacherListPage({
         );
       }
     }
-    
+
     // Contar el total de registros para paginación
     const countResult = await query.select('count(*)').single();
     count = countResult.count || 0;
-    
+
     // Obtener los datos paginados
     const { data: teachersData } = await query
       .range((pageNum - 1) * ITEM_PER_PAGE, pageNum * ITEM_PER_PAGE - 1);
-    
+
     // Para cada profesor, obtener sus asignaturas y clases
     if (teachersData) {
       for (const teacher of teachersData) {
@@ -284,34 +284,34 @@ export default async function TeacherListPage({
           .from('Lesson')
           .select('subjectId')
           .eq('teacherId', teacher.id);
-        
+
         const subjectIds = Array.from(new Set(lessonsSubjectsData?.map(item => item.subjectId) || []));
-        
+
         let subjects: Subject[] = [];
         if (subjectIds.length > 0) {
           const { data: subjectsInfo } = await supabase
             .from('Subject')
             .select('id, name')
             .in('id', subjectIds);
-          
+
           subjects = subjectsInfo || [];
         }
-        
+
         // Obtener clases del profesor
         const { data: lessonsData } = await supabase
           .from('Lesson')
           .select('classId')
           .eq('teacherId', teacher.id);
-        
+
         const classIds = Array.from(new Set(lessonsData?.map(item => item.classId) || []));
-        
+
         let classes: Class[] = [];
         if (classIds.length > 0) {
           const { data: classesInfo } = await supabase
             .from('Class')
             .select('id, name')
             .in('id', classIds);
-          
+
           classes = classesInfo || [];
         }
 

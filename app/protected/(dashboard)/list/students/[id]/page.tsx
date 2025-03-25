@@ -223,31 +223,31 @@ const SingleStudentPage = async ({
           <div className="mt-4 flex gap-4 flex-wrap text-xs text-gray-500">
             <Link
               className="p-3 rounded-md bg-lamaSkyLight"
-              href={`/list/lessons?classId=${student.class.id}`}
+              href={`/protected/list/lessons?classId=${student.class.id}`}
             >
               Lecciones del estudiante
             </Link>
             <Link
               className="p-3 rounded-md bg-lamaPurpleLight"
-              href={`/list/teachers?classId=${student.class.id}`}
+              href={`/protected/list/teachers?classId=${student.class.id}`}
             >
               Profesores del estudiante
             </Link>
             <Link
               className="p-3 rounded-md bg-pink-50"
-              href={`/list/exams?classId=${student.class.id}`}
+              href={`/protected/list/exams?classId=${student.class.id}`}
             >
               Exámenes del estudiante
             </Link>
             <Link
               className="p-3 rounded-md bg-lamaSkyLight"
-              href={`/list/assignments?classId=${student.class.id}`}
+              href={`/protected/list/assignments?classId=${student.class.id}`}
             >
               Trabajos del estudiante
             </Link>
             <Link
               className="p-3 rounded-md bg-lamaYellowLight"
-              href={`/list/results?studentId=${student.id}`}
+              href={`/protected/list/results?studentId=${student.id}`}
             >
               Resultados del estudiante
             </Link>

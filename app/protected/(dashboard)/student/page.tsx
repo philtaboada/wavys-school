@@ -3,19 +3,19 @@ import BigCalendarContainer from "@/components/BigCalendarContainer";
 import BigCalendar from "@/components/BigCalender";
 import EventCalendar from "@/components/EventCalendar";
 import PostGeneral from "@/components/PostGeneral";
-import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/utils/supabase/server";
 
 const StudentPage = async () => {
-  const { userId } = auth();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const userId = user?.id;
 
-  const classItem = await prisma.class.findMany({
-    where: {
-      students: { some: { id: userId! } },
-    },
-  });
+  const { data: classItem, error: classError } = await supabase
+    .from('Class')
+    .select('*')
+    .eq('students.id', userId!);
 
-  console.log(classItem);
+    console.log(classItem);
   return (
     <div className="p-4 flex gap-4 flex-col xl:flex-row">
       {/* LEFT */}
