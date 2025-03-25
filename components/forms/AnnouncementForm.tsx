@@ -11,7 +11,7 @@ import {
   createAnnouncement,
   updateAnnouncement,
 } from "@/lib/actions";
-import { useFormState } from "react-dom";
+import { useActionState } from 'react';
 import { Dispatch, SetStateAction, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
@@ -35,7 +35,7 @@ const AnnouncementForm = ({
     resolver: zodResolver(announcementSchema),
   });
 
-  const [state, formAction] = useFormState(
+  const [state, formAction] = useActionState(
     type === "create" ? createAnnouncement : updateAnnouncement,
     {
       success: false,

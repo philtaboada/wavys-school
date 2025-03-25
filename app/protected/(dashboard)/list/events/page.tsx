@@ -108,7 +108,7 @@ const EventListPage = async ({
   // URL PARAMS CONDITION
 
   let query = supabase
-    .from('event')
+    .from('Event')
     .select('*, class:classId(id, name)', { count: 'exact' });
 
   if (queryParams.search) {
@@ -120,21 +120,21 @@ const EventListPage = async ({
   if (role !== 'admin') {
     if (role === 'teacher') {
       const { data: classes } = await supabase
-        .from('lessons')
+        .from('Lesson')
         .select('classId')
         .eq('teacherId', currentUserId);
 
       userClassIds = classes?.map(c => c.classId) || [];
     } else if (role === 'student') {
       const { data: classes } = await supabase
-        .from('students')
+        .from('Student')
         .select('classId')
         .eq('id', currentUserId);
 
       userClassIds = classes?.map(c => c.classId) || [];
     } else if (role === 'parent') {
       const { data: classes } = await supabase
-        .from('students')
+        .from('Student')
         .select('classId')
         .eq('parentId', currentUserId);
 

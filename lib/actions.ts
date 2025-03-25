@@ -8,7 +8,8 @@ import {
   SubjectSchema,
   TeacherSchema,
   AnnouncementSchema,
-  ParentSchema
+  ParentSchema,
+  AttendanceSchema
 } from "./formValidationSchemas";
 import { createClient } from "@/utils/supabase/server";
 
@@ -819,6 +820,105 @@ export const deleteParent = async (
     const { error: authError } = await supabase.auth.admin.deleteUser(id);
     
     if (authError) throw authError;
+
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: true };
+  }
+};
+
+// Acciones para la gestión de asistencia
+export const createAttendance = async (
+  currentState: CurrentState,
+  data: AttendanceSchema
+) => {
+  try {
+    const supabase = await createClient();
+    
+    // Verificar si la asistencia ya existe para evitar duplicados
+    const { data: existingAttendance, error: checkError } = await supabase
+      .from('attendance')
+      .select('id')
+      .eq('student_id', data.student_id)
+      .eq('lesson_id', data.lesson_id)
+      .eq('date', new Date(data.date).toISOString().split('T')[0])
+      .single();
+    
+    if (!checkError && existingAttendance) {
+      // Actualizar la asistencia existente
+      const { error: updateError } = await supabase
+        .from('attendance')
+        .update({
+          present: data.present,
+          date: data.date
+        })
+        .eq('id', existingAttendance.id);
+      
+      if (updateError) throw updateError;
+    } else {
+      // Crear nueva asistencia
+      const { error } = await supabase
+        .from('attendance')
+        .insert({
+          date: data.date,
+          present: data.present,
+          student_id: data.student_id,
+          lesson_id: data.lesson_id
+        });
+  
+      if (error) throw error;
+    }
+
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: true };
+  }
+};
+
+export const updateAttendance = async (
+  currentState: CurrentState,
+  data: AttendanceSchema
+) => {
+  if (!data.id) {
+    return { success: false, error: true };
+  }
+  try {
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+      .from('attendance')
+      .update({
+        date: data.date,
+        present: data.present,
+        student_id: data.student_id,
+        lesson_id: data.lesson_id
+      })
+      .eq('id', data.id);
+
+    if (error) throw error;
+
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: true };
+  }
+};
+
+export const deleteAttendance = async (
+  currentState: CurrentState,
+  id: number
+) => {
+  try {
+    const supabase = await createClient();
+    
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
 
     return { success: true, error: false };
   } catch (err) {

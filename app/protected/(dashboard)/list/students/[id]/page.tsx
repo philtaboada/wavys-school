@@ -3,36 +3,94 @@ import BigCalendarContainer from "@/components/BigCalendarContainer";
 import FormContainer from "@/components/FormContainer";
 import Performance from "@/components/Performance";
 import StudentAttendanceCard from "@/components/StudentAttendanceCard";
-import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
-import { Class, Student } from "@prisma/client";
+import { createClient } from "@/utils/supabase/server";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
+enum UserSex {
+  MALE = "MALE",
+  FEMALE = "FEMALE"
+}
+interface Student {
+  id: string;
+  username: string;
+  name: string;
+  surname: string;
+  email: string | null;
+  phone: string | null;
+  address: string;
+  img: string | null;
+  bloodType: string;
+  sex: UserSex;
+  createdAt: string | Date;
+  parentId: string;
+  classId: number;
+  gradeId: number;
+  birthday: string | Date;
+}
+interface Class {
+  id: number;
+  name: string;
+  capacity: number;
+  supervisorId: string | null;
+  gradeId: number;
+}
+
+
 const SingleStudentPage = async ({
-  params: { id },
+  params,
 }: {
   params: { id: string };
 }) => {
-  const { sessionClaims } = auth();
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
+  // Simplemente usar params.id sin desestructurar
+  const id = params.id;
 
-  const student:
-    | (Student & {
-        class: Class & { _count: { lessons: number } };
-      })
-    | null = await prisma.student.findUnique({
-    where: { id },
-    include: {
-      class: { include: { _count: { select: { lessons: true } } } },
-    },
-  });
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = (user?.user_metadata as { role?: string })?.role;
 
-  if (!student) {
+  const { data: studentData, error: studentError } = await supabase
+    .from('Student')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (studentError || !studentData) {
     return notFound();
   }
+
+  const { data: classData, error: classError } = await supabase
+    .from('Class')
+    .select('*')
+    .eq('id', studentData.classId)
+    .single();
+
+  if (classError || !classData) {
+    return notFound();
+  }
+
+  const { count: lessonsCount, error: countError } = await supabase
+    .from('Lesson')
+    .select('*', { count: 'exact', head: true })
+    .eq('classId', classData.id);
+
+  if (countError) {
+    console.error('Error contando lecciones:', countError);
+  }
+
+  const student = {
+    ...studentData,
+    class: {
+      ...classData,
+      _count: {
+        Lesson: lessonsCount || 0
+      }
+    }
+  } as Student & {
+    class: Class & { _count: { lessons: number } };
+  };
 
   return (
     <div className="flex-1 p-4 flex flex-col gap-4 xl:flex-row">
@@ -71,7 +129,11 @@ const SingleStudentPage = async ({
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
                   <Image src="/date.png" alt="" width={14} height={14} />
                   <span>
-                    {new Intl.DateTimeFormat("en-GB").format(student.birthday)}
+                    {new Intl.DateTimeFormat("es-ES").format(
+                      typeof student.birthday === 'string' 
+                        ? new Date(student.birthday)
+                        : student.birthday
+                    )}
                   </span>
                 </div>
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">

@@ -1,6 +1,6 @@
 'use client'
 import { useRef, useEffect } from 'react';
-import router, { useRouter } from 'next/router';
+import router from 'next/router';
 import Link from 'next/link';
 import { signOutAction } from "@/app/actions";
 

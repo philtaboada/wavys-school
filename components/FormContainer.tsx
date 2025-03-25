@@ -74,7 +74,20 @@ const FormContainer = async ({ table, type, data, id }: FormContainerProps) => {
           .eq(role === "teacher" ? 'supervisorId' : '', role === "teacher" ? currentUserId : '');
         relatedData = { classes: announcementClasses };
         break;
-
+      case "attendance":
+        const { data: attendanceStudents } = await supabase
+          .from('student')
+          .select('id, name, surname');
+        
+        const { data: attendanceLessons } = await supabase
+          .from('lesson')
+          .select('id, name, subject:subjectId(id, name)');
+        
+        relatedData = { 
+          students: attendanceStudents, 
+          lessons: attendanceLessons 
+        };
+        break;
       default:
         break;
     }

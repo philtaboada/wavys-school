@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/server";
 import Image from "next/image";
 import Link from "next/link";
+import { signOutAction } from "@/app/actions";
 
 const menuItems = [
   {
@@ -131,6 +132,20 @@ const Menu = async () => {
           </span>
           {i.items.map((item) => {
             if (item.visible.includes(role)) {
+              if (item.label === "Cerrar sesión") {
+                return (
+                  <form action={signOutAction} key={item.label}>
+                    <button 
+                      type="submit"
+                      className="cursor-pointer flex items-center justify-center lg:justify-start gap-4 text-gray-500 py-2 md:px-2 rounded-md hover:bg-lamaSkyLight w-full"
+                    >
+                      <Image src={item.icon} alt="" width={20} height={20} />
+                      <span className="hidden lg:block">{item.label}</span>
+                    </button>
+                  </form>
+                );
+              }
+              
               return (
                 <Link
                   href={item.href}

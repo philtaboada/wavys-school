@@ -14,14 +14,24 @@ type Announcement = {
   classId: number | null;
 };
 
-type SearchParams = {
-  searchParams: { [key: string]: string | undefined };
-};
-
 type AnnouncementList = Announcement & { class: { name: string } | null };
 
-const AnnouncementListPage = async ({ searchParams }: SearchParams) => {
-
+// Utilizar la estructura de parámetros recomendada por Next.js 15
+export default async function AnnouncementListPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ 
+    page?: string;
+    search?: string;
+    [key: string]: string | undefined;
+  }>;
+}) {
+  // Acceder a searchParams de forma asíncrona como recomienda Next.js 15
+  const params = await searchParams;
+  
+  // Extrae los valores de forma segura
+  const pageNum = params.page ? parseInt(params.page, 10) : 1;
+  const searchText = params.search || '';
   
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -75,17 +85,14 @@ const AnnouncementListPage = async ({ searchParams }: SearchParams) => {
     </tr>
   );
 
-  const page = searchParams?.page ? parseInt(searchParams.page) : 1;
-  const search = searchParams?.search || "";
-
   // Crear consulta con Supabase
   let query = supabase
     .from('Announcement')
     .select('*, Class:Class(*)', { count: 'exact' });
 
   // Filtros de búsqueda
-  if (search) {
-    query = query.ilike("title", `%${search}%`);
+  if (searchText) {
+    query = query.ilike("title", `%${searchText}%`);
   }
 
   // Condiciones basadas en roles
@@ -99,7 +106,7 @@ const AnnouncementListPage = async ({ searchParams }: SearchParams) => {
 
   // Paginación
   query = query
-    .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
+    .range((pageNum - 1) * ITEM_PER_PAGE, pageNum * ITEM_PER_PAGE - 1)
     .order('id', { ascending: false });
 
   const { data, count, error } = await query;
@@ -134,9 +141,7 @@ const AnnouncementListPage = async ({ searchParams }: SearchParams) => {
       {/* LIST */}
       <Table columns={columns} renderRow={renderRow} data={data} />
       {/* PAGINATION */}
-      <Pagination page={page} count={count ?? 0} />
+      <Pagination page={pageNum} count={count ?? 0} />
     </div>
   );
-};
-
-export default AnnouncementListPage;
+}

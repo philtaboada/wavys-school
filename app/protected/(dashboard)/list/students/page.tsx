@@ -3,23 +3,49 @@ import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
 
-import prisma from "@/lib/prisma";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import { Class, Prisma, Student } from "@prisma/client";
 import Image from "next/image";
 import Link from "next/link";
 
-import { auth } from "@clerk/nextjs/server";
+import { createClient } from "@/utils/supabase/server";
 
-type StudentList = Student & { class: Class };
+// Tipos adaptados para Supabase
+type Class = {
+  id: string;
+  name: string;
+};
 
+type Student = {
+  id: string;
+  name: string;
+  username: string;
+  img: string | null;
+  phone: string;
+  address: string;
+  class_id: string;
+  class: Class;
+};
+
+// Utilizar la estructura de parámetros recomendada por Next.js 15
 const StudentListPage = async ({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | undefined };
+  searchParams: Promise<{
+    page?: string;
+    search?: string;
+    [key: string]: string | undefined;
+  }>;
 }) => {
-  const { sessionClaims } = auth();
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
+  // Acceder a searchParams de forma asíncrona como recomienda Next.js 15
+  const params = await searchParams;
+
+  // Extrae los valores de forma segura
+  const p = params.page ? parseInt(params.page, 10) : 1;
+  const searchText = params.search || '';
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const role = (user?.user_metadata as { role?: string })?.role;
 
   const columns = [
     {
@@ -48,15 +74,15 @@ const StudentListPage = async ({
     },
     ...(role === "admin"
       ? [
-          {
-            header: "Acciones",
-            accessor: "action",
-          },
-        ]
+        {
+          header: "Acciones",
+          accessor: "action",
+        },
+      ]
       : []),
   ];
 
-  const renderRow = (item: StudentList) => (
+  const renderRow = (item: Student) => (
     <tr
       key={item.id}
       className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
@@ -80,15 +106,12 @@ const StudentListPage = async ({
       <td className="hidden md:table-cell">{item.address}</td>
       <td>
         <div className="flex items-center gap-2">
-          <Link href={`/list/students/${item.id}`}>
-            <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaSky">
-              <svg xmlns="http://www.w3.org/2000/svg" width={20} height={20} viewBox="0 0 24 24"><path fill="white" d="m14.06 9.02l.92.92L5.92 19H5v-.92zM17.66 3c-.25 0-.51.1-.7.29l-1.83 1.83l3.75 3.75l1.83-1.83a.996.996 0 0 0 0-1.41l-2.34-2.34c-.2-.2-.45-.29-.71-.29m-3.6 3.19L3 17.25V21h3.75L17.81 9.94z"></path></svg>
+          <Link href={`/protected/list/students/${item.id}`}>
+            <button className="w-7 h-7 flex items-center justify-center rounded-full cursor-pointer">
+              <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#990000" d="M12 9a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5a5 5 0 0 1 5-5a5 5 0 0 1 5 5a5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
             </button>
           </Link>
           {role === "admin" && (
-            // <button className="w-7 h-7 flex items-center justify-center rounded-full bg-lamaPurple">
-            //   <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#fff" d="M7 21q-.825 0-1.412-.587T5 19V6q-.425 0-.712-.288T4 5t.288-.712T5 4h4q0-.425.288-.712T10 3h4q.425 0 .713.288T15 4h4q.425 0 .713.288T20 5t-.288.713T19 6v13q0 .825-.587 1.413T17 21zM17 6H7v13h10zm-7 11q.425 0 .713-.288T11 16V9q0-.425-.288-.712T10 8t-.712.288T9 9v7q0 .425.288.713T10 17m4 0q.425 0 .713-.288T15 16V9q0-.425-.288-.712T14 8t-.712.288T13 9v7q0 .425.288.713T14 17M7 6v13z"></path></svg>
-            // </button>
             <FormContainer table="student" type="delete" id={item.id} />
           )}
         </div>
@@ -96,78 +119,62 @@ const StudentListPage = async ({
     </tr>
   );
 
-  const { page, ...queryParams } = searchParams;
+  try {
+    // Consulta con Supabase en lugar de Prisma
+    let query = supabase
+      .from('Student')
+      .select(`
+        id, name, username, img, phone, address, classId,
+        class:Class(id, name)
+      `, { count: 'exact' })
+      .range((p - 1) * ITEM_PER_PAGE, p * ITEM_PER_PAGE - 1);
 
-  const p = page ? parseInt(page) : 1;
-
-  // URL PARAMS CONDITION
-
-  const query: Prisma.StudentWhereInput = {};
-
-  if (queryParams) {
-    for (const [key, value] of Object.entries(queryParams)) {
-      if (value !== undefined) {
-        switch (key) {
-          case "teacherId":
-            query.class = {
-              lessons: {
-                some: {
-                  teacherId: value,
-                },
-              },
-            };
-            break;
-          case "search":
-            query.name = { contains: value, mode: "insensitive" };
-            break;
-          default:
-            break;
-        }
-      }
+    // Agregar filtros según los parámetros de URL
+    if (searchText) {
+      query = query.ilike('name', `%${searchText}%`);
     }
-  }
 
-  const [data, count] = await prisma.$transaction([
-    prisma.student.findMany({
-      where: query,
-      include: {
-        class: true,
-      },
-      take: ITEM_PER_PAGE,
-      skip: ITEM_PER_PAGE * (p - 1),
-    }),
-    prisma.student.count({ where: query }),
-  ]);
+    // Obtener los datos
+    const { data, count, error } = await query;
 
-  return (
-    <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
-      {/* TOP */}
-      <div className="flex items-center justify-between">
-        <h1 className="hidden md:block text-lg font-semibold">Todos los estudiantes</h1>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <TableSearch />
-          <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
-            </button>
-            {role === "admin" && (
-              // <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              //   <Image src="/plus.png" alt="" width={14} height={14} />
-              // </button>
-              <FormContainer table="student" type="create" />
-            )}
+    if (error) {
+      console.error("Error en la consulta principal:", error);
+      return <div>Error al cargar los datos: {error.message}</div>;
+    }
+
+    // Formatear datos si es necesario
+    const formattedData = data || [];
+
+    return (
+      <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
+        {/* TOP */}
+        <div className="flex items-center justify-between">
+          <h1 className="hidden md:block text-lg font-semibold">Todos los estudiantes</h1>
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+            <TableSearch />
+            <div className="flex items-center gap-4 self-end">
+              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+                <Image src="/filter.png" alt="" width={14} height={14} />
+              </button>
+              <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+                <Image src="/sort.png" alt="" width={14} height={14} />
+              </button>
+              {role === "admin" && (
+                <FormContainer table="student" type="create" />
+              )}
+            </div>
           </div>
         </div>
+        {/* LIST */}
+        <Table columns={columns} renderRow={renderRow} data={formattedData} />
+        {/* PAGINATION */}
+        <Pagination page={p} count={count || 0} />
       </div>
-      {/* LIST */}
-      <Table columns={columns} renderRow={renderRow} data={data} />
-      {/* PAGINATION */}
-      <Pagination page={p} count={count} />
-    </div>
-  );
+    );
+  } catch (error) {
+    console.error("Error inesperado:", error);
+    return <div>Error inesperado al cargar los datos</div>;
+  }
 };
 
 export default StudentListPage;

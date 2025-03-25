@@ -7,15 +7,17 @@ import {
   deleteSubject,
   deleteTeacher,
   deleteAnnouncement,
-  deleteParent
+  deleteParent,
+  deleteAttendance
 } from "@/lib/actions";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Dispatch, SetStateAction, useEffect, useState } from "react";
-import { useFormState } from "react-dom";
+import { useActionState } from 'react';
 import { toast } from "react-toastify";
 import { FormContainerProps } from "./FormContainer";
+import React from "react";
 
 const deleteActionMap = {
   subject: deleteSubject,
@@ -29,7 +31,7 @@ const deleteActionMap = {
   lesson: deleteSubject,
   assignment: deleteSubject,
   result: deleteSubject,
-  attendance: deleteSubject,
+  attendance: deleteAttendance,
   event: deleteSubject,
 };
 
@@ -59,6 +61,9 @@ const AnnouncementForm = dynamic(() => import("./forms/AnnouncementForm"), {
 const ParentForm = dynamic(() => import("./forms/ParentForm"), {
   loading: () => <h1>Loading...</h1>,
 });
+const AttendanceForm = dynamic(() => import("./forms/AttendanceForm"), {
+  loading: () => <h1>Loading...</h1>,
+});
 // TODO: OTHER FORMS
 
 const forms: {
@@ -67,7 +72,7 @@ const forms: {
     type: "create" | "update",
     data?: any,
     relatedData?: any
-  ) => JSX.Element;
+  ) => React.ReactElement;
 } = {
   subject: (setOpen, type, data, relatedData) => (
     <SubjectForm
@@ -125,6 +130,14 @@ const forms: {
       relatedData={relatedData}
     />
   ),
+  attendance: (setOpen, type, data, relatedData) => (
+    <AttendanceForm
+      type={type}
+      data={data}
+      setOpen={setOpen}
+      relatedData={relatedData}
+    />
+  ),
   // TODO OTHER LIST ITEMS
 };
 
@@ -146,7 +159,7 @@ const FormModal = ({
   const [open, setOpen] = useState(false);
 
   const Form = () => {
-    const [state, formAction] = useFormState(deleteActionMap[table], {
+    const [state, formAction] = useActionState(deleteActionMap[table], {
       success: false,
       error: false,
     });

@@ -4,12 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import InputField from "../InputField";
 import Image from "next/image";
-import { Dispatch, SetStateAction, useEffect, useState, useRef } from "react";
+import { Dispatch, SetStateAction, useEffect, useState, useRef, useActionState } from "react";
 import {
   studentSchema,
   StudentSchema,
 } from "@/lib/formValidationSchemas";
-import { useFormState } from "react-dom";
 import {
   createStudent,
   updateStudent,
@@ -51,7 +50,7 @@ const StudentForm = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [state, formAction] = useFormState(
+  const [state, formAction] = useActionState(
     type === "create" ? createStudent : updateStudent,
     {
       success: false,
@@ -91,7 +90,7 @@ const StudentForm = ({
     }
   }, [img]);
 
-  const { grades, classes } = relatedData;
+  const { grades = [], classes = [] } = relatedData || {};
 
   // Función para manejar la carga de imágenes con Google Cloud Storage
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -270,7 +269,7 @@ const StudentForm = ({
               defaultValue={data?.gradeId}
             >
               <option value="">Seleccionar grado</option>
-              {grades.map((grade: { id: number; level: number }) => (
+              {grades?.map((grade: { id: number; level: number }) => (
                 <option value={grade.id} key={grade.id}>
                   Grado {grade.level}
                 </option>
@@ -292,7 +291,7 @@ const StudentForm = ({
               defaultValue={data?.classId}
             >
               <option value="">Seleccionar clase</option>
-              {classes.map(
+              {classes?.map(
                 (classItem: {
                   id: number;
                   name: string;
