@@ -5,16 +5,10 @@ import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/server";
-
-type Subject = {
-  id: number;
-  name: string;
-  teachers?: {
-    id: string;
-    name: string;
-    surname: string;
-  }[];
-};
+import { useUserRole } from "@/utils/hooks";
+import { Subject } from "@/utils/types";
+import { ArrowDownNarrowWide } from "lucide-react";
+import { ListFilterPlus } from "lucide-react";
 
 export default async function SubjectListPage({
   searchParams,
@@ -33,9 +27,7 @@ export default async function SubjectListPage({
   const searchText = params.search || '';
   
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role;
-  const userId = user?.id;
+  const { role, userId } = await useUserRole();
 
   // Log para depuración - Información del usuario
   console.log('DEBUG - Usuario:', { userId, role });
@@ -183,10 +175,10 @@ export default async function SubjectListPage({
           <TableSearch />
           <div className="flex items-center gap-4 self-end">
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
+              <ListFilterPlus className="w-4 h-4" />
             </button>
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
+              <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {role === "admin" && (
               <FormContainer table="subject" type="create" />

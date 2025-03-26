@@ -1,104 +1,133 @@
-<a href="https://demo-nextjs-with-supabase.vercel.app/">
-  <img alt="Next.js and Supabase Starter Kit - the fastest way to build apps with Next.js and Supabase" src="https://demo-nextjs-with-supabase.vercel.app/opengraph-image.png">
-  <h1 align="center">Next.js and Supabase Starter Kit</h1>
-</a>
+# Wavys College - Sistema de Gestión Educativa
 
 <p align="center">
- The fastest way to build apps with Next.js and Supabase
+  Plataforma educativa completa para la gestión de estudiantes, asistencias, calificaciones y más.
 </p>
 
 <p align="center">
-  <a href="#features"><strong>Features</strong></a> ·
-  <a href="#demo"><strong>Demo</strong></a> ·
-  <a href="#deploy-to-vercel"><strong>Deploy to Vercel</strong></a> ·
-  <a href="#clone-and-run-locally"><strong>Clone and run locally</strong></a> ·
-  <a href="#feedback-and-issues"><strong>Feedback and issues</strong></a>
-  <a href="#more-supabase-examples"><strong>More Examples</strong></a>
+  <a href="#características"><strong>Características</strong></a> ·
+  <a href="#tecnologías"><strong>Tecnologías</strong></a> ·
+  <a href="#estructura-del-proyecto"><strong>Estructura</strong></a> ·
+  <a href="#ejecutar-localmente"><strong>Ejecutar localmente</strong></a> ·
+  <a href="#TanStack-Query-y-Supabase"><strong>TanStack Query y Supabase</strong></a>
 </p>
-<br/>
 
-## Features
+## Características
 
-- Works across the entire [Next.js](https://nextjs.org) stack
-  - App Router
-  - Pages Router
-  - Middleware
-  - Client
-  - Server
-  - It just works!
-- supabase-ssr. A package to configure Supabase Auth to use cookies
-- Styling with [Tailwind CSS](https://tailwindcss.com)
-- Components with [shadcn/ui](https://ui.shadcn.com/)
-- Optional deployment with [Supabase Vercel Integration and Vercel deploy](#deploy-your-own)
-  - Environment variables automatically assigned to Vercel project
+- **Gestión de usuarios** con diferentes roles (administradores, profesores, estudiantes, padres)
+- **Control de asistencia** para estudiantes
+- **Registro de calificaciones** y evaluaciones
+- **Gestión de horarios** y cursos
+- **Sistema de notificaciones** para comunicación entre usuarios
+- **Paneles personalizados** según el rol del usuario
+- **Interfaz moderna y responsive** construida con Tailwind CSS
 
-## Demo
+## Tecnologías
 
-You can view a fully working demo at [demo-nextjs-with-supabase.vercel.app](https://demo-nextjs-with-supabase.vercel.app/).
+- [Next.js 14](https://nextjs.org/) - Framework de React para desarrollo web
+- [Supabase](https://supabase.com/) - Backend como servicio (BaaS)
+- [TanStack Query](https://tanstack.com/query) - Gestión de estado de datos asíncronos
+- [Tailwind CSS](https://tailwindcss.com/) - Framework CSS utilitario
+- [TypeScript](https://www.typescriptlang.org/) - Superset de JavaScript tipado
+- [shadcn/ui](https://ui.shadcn.com/) - Componentes reutilizables
 
-## Deploy to Vercel
+## Estructura del proyecto
 
-Vercel deployment will guide you through creating a Supabase account and project.
+```
+wavys-college/
+├── app/                      # Directorio principal de la aplicación Next.js
+│   ├── attendance/           # Funcionalidad de control de asistencia
+│   ├── examples/             # Ejemplos y tutoriales
+│   ├── layout.tsx            # Layout principal de la aplicación
+│   └── page.tsx              # Página principal
+├── components/               # Componentes reutilizables
+├── lib/                      # Utilidades y configuraciones
+├── public/                   # Archivos estáticos
+├── styles/                   # Estilos globales
+├── utils/                    # Utilidades globales
+│   ├── queries/              # Hooks de TanStack Query para Supabase
+│   └── supabase/             # Configuración de Supabase
+└── ...
+```
 
-After installation of the Supabase integration, all relevant environment variables will be assigned to the project so the deployment is fully functioning.
+## Ejecutar localmente
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&project-name=nextjs-with-supabase&repository-name=nextjs-with-supabase&demo-title=nextjs-with-supabase&demo-description=This+starter+configures+Supabase+Auth+to+use+cookies%2C+making+the+user%27s+session+available+throughout+the+entire+Next.js+app+-+Client+Components%2C+Server+Components%2C+Route+Handlers%2C+Server+Actions+and+Middleware.&demo-url=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2F&external-id=https%3A%2F%2Fgithub.com%2Fvercel%2Fnext.js%2Ftree%2Fcanary%2Fexamples%2Fwith-supabase&demo-image=https%3A%2F%2Fdemo-nextjs-with-supabase.vercel.app%2Fopengraph-image.png)
-
-The above will also clone the Starter kit to your GitHub, you can clone that locally and develop locally.
-
-If you wish to just develop locally and not deploy to Vercel, [follow the steps below](#clone-and-run-locally).
-
-## Clone and run locally
-
-1. You'll first need a Supabase project which can be made [via the Supabase dashboard](https://database.new)
-
-2. Create a Next.js app using the Supabase Starter template npx command
-
+1. Clona el repositorio:
    ```bash
-   npx create-next-app --example with-supabase with-supabase-app
+   git clone https://github.com/tu-usuario/wavys-college.git
+   cd wavys-college
    ```
 
+2. Instala las dependencias:
    ```bash
-   yarn create next-app --example with-supabase with-supabase-app
+   npm install
+   # o
+   yarn
+   # o
+   pnpm install
    ```
 
-   ```bash
-   pnpm create next-app --example with-supabase with-supabase-app
-   ```
+3. Configura las variables de entorno:
+   - Renombra `.env.example` a `.env.local`
+   - Actualiza las credenciales de Supabase
 
-3. Use `cd` to change into the app's directory
-
-   ```bash
-   cd with-supabase-app
-   ```
-
-4. Rename `.env.example` to `.env.local` and update the following:
-
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=[INSERT SUPABASE PROJECT URL]
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=[INSERT SUPABASE PROJECT API ANON KEY]
-   ```
-
-   Both `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` can be found in [your Supabase project's API settings](https://app.supabase.com/project/_/settings/api)
-
-5. You can now run the Next.js local development server:
-
+4. Inicia el servidor de desarrollo:
    ```bash
    npm run dev
+   # o
+   yarn dev
+   # o
+   pnpm dev
    ```
 
-   The starter kit should now be running on [localhost:3000](http://localhost:3000/).
+5. Navega a [http://localhost:3000](http://localhost:3000)
 
-6. This template comes with the default shadcn/ui style initialized. If you instead want other ui.shadcn styles, delete `components.json` and [re-install shadcn/ui](https://ui.shadcn.com/docs/installation/next)
+## TanStack Query y Supabase
 
-> Check out [the docs for Local Development](https://supabase.com/docs/guides/getting-started/local-development) to also run Supabase locally.
+Este proyecto utiliza TanStack Query (anteriormente React Query) para gestionar las solicitudes a la API de Supabase, proporcionando:
 
-## Feedback and issues
+- **Caché inteligente** para datos previamente obtenidos
+- **Revalidación automática** de datos obsoletos
+- **Gestión de mutaciones** con invalidación automática de caché
+- **Deduplicación de solicitudes** para mejorar el rendimiento
+- **Estados de carga y error** fáciles de usar
 
-Please file feedback and issues over on the [Supabase GitHub org](https://github.com/supabase/supabase/issues/new/choose).
+### Hooks personalizados
 
-## More Supabase examples
+Hemos creado un conjunto de hooks personalizados para simplificar la integración:
 
-- [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
-- [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
-- [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+```tsx
+// Ejemplo de consulta
+const { data, isLoading, error } = useAttendanceList({
+  page: 1,
+  search: 'valor de búsqueda'
+});
+
+// Ejemplo de mutación
+const createAttendance = useCreateAttendance();
+createAttendance.mutate({
+  studentId: '123',
+  lessonId: 456,
+  date: '2023-07-15',
+  present: true
+});
+```
+
+Consulta el directorio `utils/queries` para ver todos los hooks disponibles y sus ejemplos de uso.
+
+### Ejemplo completo
+
+Para ver un ejemplo completo de la integración, visita:
+
+- `/examples/attendance` - Ejemplo interactivo de gestión de asistencias
+- `utils/queries/README.md` - Documentación detallada sobre el uso de los hooks
+
+## Equipo
+
+- Juan Pérez - Desarrollador Frontend
+- María López - Desarrolladora Backend
+- Carlos González - Diseñador UI/UX
+
+## Licencia
+
+Este proyecto está licenciado bajo la Licencia MIT - ver el archivo LICENSE para más detalles.

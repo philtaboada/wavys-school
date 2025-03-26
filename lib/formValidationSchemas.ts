@@ -128,8 +128,8 @@ export const attendanceSchema = z.object({
   id: z.coerce.number().optional(),
   date: z.coerce.date({ message: "Fecha es requerida!" }),
   present: z.boolean({ message: "Estado de asistencia es requerido!" }),
-  student_id: z.string().min(1, { message: "ID del estudiante es requerido!" }),
-  lesson_id: z.coerce.number().min(1, { message: "ID de la lección es requerido!" })
+  studentId: z.string().min(1, { message: "ID del estudiante es requerido!" }),
+  lessonId: z.coerce.number().min(1, { message: "ID de la lección es requerido!" })
 });
 
 export type AttendanceSchema = z.infer<typeof attendanceSchema>;

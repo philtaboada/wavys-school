@@ -2,8 +2,11 @@
 
 import { Calendar, momentLocalizer, View, Views } from "react-big-calendar";
 import moment from "moment";
+import 'moment/locale/es'; 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { useState } from "react";
+
+moment.locale("es");
 
 const localizer = momentLocalizer(moment);
 

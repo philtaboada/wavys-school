@@ -1,11 +1,12 @@
 import Announcements from "@/components/Announcements";
 import BigCalendarContainer from "@/components/BigCalendarContainer";
+import { useUserRole } from "@/utils/hooks";
 import { createClient } from "@/utils/supabase/server";
 
 
 const ParentPage = async () => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await useUserRole();
   const currentUserId = user?.id;
   
   const { data: students, error: studentsError } = await supabase

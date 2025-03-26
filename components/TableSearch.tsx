@@ -3,18 +3,34 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
-const TableSearch = () => {
+interface TableSearchProps {
+  value?: string;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onSearch?: () => void;
+}
+
+const TableSearch = ({ value, onChange, onSearch }: TableSearchProps = {}) => {
   const router = useRouter();
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    if (onSearch) {
+      // Si hay una función onSearch, usarla
+      onSearch();
+    } else {
+      // Comportamiento por defecto
+      const input = e.currentTarget[0] as HTMLInputElement;
+      const value = input.value;
 
-    const value = (e.currentTarget[0] as HTMLInputElement).value;
-
-    const params = new URLSearchParams(window.location.search);
-    params.set("search", value);
-    router.push(`${window.location.pathname}?${params}`);
+      const params = new URLSearchParams(window.location.search);
+      params.set("search", value);
+      router.push(`${window.location.pathname}?${params}`);
+    }
   };
+
+  // Función onChange por defecto para evitar el error
+  const handleChange = onChange || (() => {});
 
   return (
     <form
@@ -26,6 +42,8 @@ const TableSearch = () => {
         type="text"
         placeholder="Buscar..."
         className="w-[200px] p-2 bg-transparent outline-none"
+        value={value || ""}
+        onChange={handleChange}
       />
     </form>
   );

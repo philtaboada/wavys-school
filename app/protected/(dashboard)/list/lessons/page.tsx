@@ -3,32 +3,10 @@ import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import Image from "next/image";
 import { createClient } from "@/utils/supabase/server";
-
-type Lesson = {
-  id: number;
-  name: string;
-  class_id?: number;
-  classId?: number;
-  teacher_id?: string;
-  teacherId?: string;
-  subject_id?: number;
-  subjectId?: number;
-  Class?: {
-    id: number;
-    name: string;
-  };
-  Teacher?: {
-    id: string;
-    name: string;
-    surname: string;
-  };
-  Subject?: {
-    id: number;
-    name: string;
-  };
-};
+import { useUserRole } from "@/utils/hooks";
+import { Lesson } from "@/utils/types";
+import { ArrowDownNarrowWide, ListFilterPlus } from "lucide-react";
 
 export default async function LessonListPage({
   searchParams,
@@ -51,9 +29,7 @@ export default async function LessonListPage({
   const teacherIdFilter = params.teacherId;
   
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role;
-  const userId = user?.id;
+  const { role, userId } = await useUserRole();
 
   // Log para depuración - Información del usuario
   console.log('DEBUG - Usuario:', { userId, role });
@@ -249,10 +225,10 @@ export default async function LessonListPage({
           <TableSearch />
           <div className="flex items-center gap-4 self-end">
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
+              <ListFilterPlus className="w-4 h-4" />
             </button>
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
+              <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {role === "admin" && (
               <FormContainer table="lesson" type="create" />

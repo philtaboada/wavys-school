@@ -5,34 +5,9 @@ import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/server";
-
-type Exam = {
-  id: number;
-  title: string;
-  startTime: Date;
-  endTime: Date;
-  lessonId: number;
-  lesson?: {
-    id: number;
-    name: string;
-    subjectId?: number;
-    classId?: number;
-    teacherId?: string;
-    subject?: {
-      id: number;
-      name: string;
-    };
-    class?: {
-      id: number;
-      name: string;
-    };
-    teacher?: {
-      id: string;
-      name: string;
-      surname: string;
-    };
-  } | null;
-};
+import { useUserRole } from "@/utils/hooks";
+import { Exam } from "@/utils/types";
+import { ArrowDownNarrowWide, ListFilterPlus } from "lucide-react";
 
 export default async function ExamListPage({
   searchParams,
@@ -55,9 +30,7 @@ export default async function ExamListPage({
   const teacherIdFilter = params.teacherId;
   
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role || '';
-  const userId = user?.id || '';
+  const { role, userId } = await useUserRole();
 
   // Log para depuración - Información del usuario
   console.log('DEBUG - Usuario:', { userId, role });
@@ -479,11 +452,11 @@ export default async function ExamListPage({
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch />
           <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
+              <ListFilterPlus className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
+              <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {(role === "admin" || role === "teacher") && (
               <FormContainer table="exam" type="create" />

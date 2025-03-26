@@ -1,5 +1,6 @@
 import { Geist, Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Providers } from "./providers";
 import "./globals.css";
 
 const defaultUrl = process.env.VERCEL_URL
@@ -33,14 +34,15 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <main>
-            <div>
+          <Providers>
+            <main>
               <div>
-                {children}
+                <div>
+                  {children}
+                </div>
               </div>
-
-            </div>
-          </main>
+            </main>
+          </Providers>
         </ThemeProvider>
       </body>
     </html>

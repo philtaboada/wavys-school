@@ -3,7 +3,8 @@ import Image from "next/image";
 import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import FormContainer from "@/components/FormContainer";
-
+import { useUserRole } from "@/utils/hooks";
+import { Subject, Class, Student } from "@/utils/types";
 // Enum para los tipos de sexo
 enum UserSex {
   MALE = "MALE",
@@ -11,51 +12,6 @@ enum UserSex {
 }
 
 // Tipos para las entidades
-interface Subject {
-  id: number;
-  name: string;
-}
-
-interface Class {
-  id: number;
-  name: string;
-}
-
-interface Grade {
-  id: number;
-  level: number;
-}
-
-interface Parent {
-  id: string;
-  name: string;
-  surname: string;
-}
-
-interface Student {
-  id: string;
-  name: string;
-  surname: string;
-  img?: string;
-}
-
-// Icono de lápiz para edición
-const EditIcon = () => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="16" 
-    height="16" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className="text-blue-600"
-  >
-    <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-  </svg>
-);
 
 // Tipo para la tabla en el FormContainer (según el componente)
 type TableType = "student" | "class" | "subject" | "teacher" | "parent" | "lesson" | "exam" | "assignment" | "result" | "attendance" | "event" | "announcement";
@@ -63,7 +19,7 @@ type TableType = "student" | "class" | "subject" | "teacher" | "parent" | "lesso
 const ProfilePage = async () => {
   // Obtener información del usuario autenticado
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { role, user } = await useUserRole(); 
   
   if (!user) {
     return (
@@ -75,9 +31,6 @@ const ProfilePage = async () => {
       </div>
     );
   }
-  
-  // Obtener el rol del usuario
-  const role = (user?.user_metadata as { role?: string })?.role || 'student';
   
   // Variables para almacenar los datos según el rol
   let userData: any = null;

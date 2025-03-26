@@ -5,6 +5,9 @@ import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
 import Image from "next/image";
 import { createClient } from "@/utils/supabase/server";
+import { useUserRole } from "@/utils/hooks";
+import { ArrowDownNarrowWide } from "lucide-react";
+import { ListFilterPlus } from "lucide-react";
 
 type Class = {
   id: number;
@@ -38,9 +41,7 @@ export default async function ClassListPage({
   const supervisorIdFilter = params.supervisorId;
   
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role || '';
-  const userId = user?.id || '';
+  const { role, userId } = await useUserRole();
 
   // Log para depuración - Información del usuario
   console.log('DEBUG - Usuario:', { userId, role });
@@ -256,11 +257,11 @@ export default async function ClassListPage({
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch />
           <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
+              <ListFilterPlus className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
+              <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {role === "admin" && (
               <FormContainer table="class" type="create" />

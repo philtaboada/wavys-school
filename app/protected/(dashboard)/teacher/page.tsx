@@ -2,10 +2,12 @@ import Announcements from "@/components/Announcements";
 import BigCalendarContainer from "@/components/BigCalendarContainer";
 import PostGeneral from "@/components/PostGeneral";
 import { createClient } from "@/utils/supabase/server";
+import { useUserRole } from "@/utils/hooks";
+
 
 const TeacherPage = async () => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await useUserRole();
   const userId = user?.id;
   return (
     <div className="flex-1 p-4 flex gap-4 flex-col xl:flex-row">

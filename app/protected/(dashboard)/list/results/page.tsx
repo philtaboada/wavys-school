@@ -3,8 +3,9 @@ import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import Image from "next/image";
+import { ArrowDownNarrowWide, ListFilterPlus } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
+import { useUserRole } from "@/utils/hooks";
 
 type Result = {
   id: number;
@@ -92,10 +93,7 @@ export default async function ResultListPage({
   const studentIdFilter = params.studentId;
   
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role || '';
-  const userId = user?.id || '';
-
+  const { role, userId } = await useUserRole();
   // Log para depuración - Información del usuario
   console.log('DEBUG - Usuario:', { userId, role });
 
@@ -526,10 +524,10 @@ export default async function ResultListPage({
           <TableSearch />
           <div className="flex items-center gap-4 self-end">
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/filter.png" alt="" width={14} height={14} />
+              <ListFilterPlus className="w-4 h-4" />
             </button>
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-              <Image src="/sort.png" alt="" width={14} height={14} />
+              <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {(role === "admin" || role === "teacher") && (
               <FormContainer table="result" type="create" />

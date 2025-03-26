@@ -3,11 +3,12 @@ import BigCalendarContainer from "@/components/BigCalendarContainer";
 import FormContainer from "@/components/FormContainer";
 import Performance from "@/components/Performance";
 import StudentAttendanceCard from "@/components/StudentAttendanceCard";
+import { useUserRole } from "@/utils/hooks";
 import { createClient } from "@/utils/supabase/server";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
+import { HeartPulse, Calendar1, Mail, Phone, CalendarPlus, ClipboardCheck, BookOpenCheck, Presentation } from "lucide-react";
 
 enum UserSex {
   MALE = "MALE",
@@ -48,8 +49,7 @@ const SingleStudentPage = async ({
   const id = params.id;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role;
+  const { role } = await useUserRole();
 
   const { data: studentData, error: studentError } = await supabase
     .from('Student')
@@ -101,13 +101,7 @@ const SingleStudentPage = async ({
           {/* USER INFO CARD */}
           <div className="bg-lamaRedLighta py-6 px-4 rounded-md flex-1 flex gap-4">
             <div className="w-1/3">
-              <Image
-                src={student.img || "/noAvatar.png"}
-                alt=""
-                width={144}
-                height={144}
-                className="w-36 h-36 rounded-full object-cover"
-              />
+              <img src={student.img || "/noAvatar.png"} alt="" className="w-36 h-36 rounded-full object-cover" />
             </div>
             <div className="w-2/3 flex flex-col justify-between gap-4">
               <div className="flex items-center gap-4">
@@ -123,25 +117,25 @@ const SingleStudentPage = async ({
               </p>
               <div className="flex items-center justify-between gap-2 flex-wrap text-xs font-medium">
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
-                  <Image src="/blood.png" alt="" width={14} height={14} />
+                  <HeartPulse className="w-4 h-4" />
                   <span>{student.bloodType}</span>
                 </div>
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
-                  <Image src="/date.png" alt="" width={14} height={14} />
+                  <Calendar1 className="w-4 h-4" />
                   <span>
                     {new Intl.DateTimeFormat("es-ES").format(
-                      typeof student.birthday === 'string' 
+                      typeof student.birthday === 'string'
                         ? new Date(student.birthday)
                         : student.birthday
                     )}
                   </span>
                 </div>
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
-                  <Image src="/mail.png" alt="" width={14} height={14} />
+                  <Mail className="w-4 h-4" />
                   <span>{student.email || "-"}</span>
                 </div>
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
-                  <Image src="/phone.png" alt="" width={14} height={14} />
+                  <Phone className="w-4 h-4" />
                   <span>{student.phone || "-"}</span>
                 </div>
               </div>
@@ -151,42 +145,24 @@ const SingleStudentPage = async ({
           <div className="flex-1 flex gap-4 justify-between flex-wrap">
             {/* CARD */}
             <div className="bg-white p-4 rounded-md flex gap-4 w-full md:w-[48%] xl:w-[45%] 2xl:w-[48%]">
-              <Image
-                src="/singleAttendance.png"
-                alt=""
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
+              <CalendarPlus className="w-6 h-6" />
               <Suspense fallback="loading...">
                 <StudentAttendanceCard id={student.id} />
               </Suspense>
             </div>
             {/* CARD */}
             <div className="bg-white p-4 rounded-md flex gap-4 w-full md:w-[48%] xl:w-[45%] 2xl:w-[48%]">
-              <Image
-                src="/singleBranch.png"
-                alt=""
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
+              <ClipboardCheck className="w-6 h-6" />
               <div className="">
                 <h1 className="text-xl font-semibold">
-                    {student.class.name.charAt(0)}th
+                  {student.class.name.charAt(0)}th
                 </h1>
                 <span className="text-sm text-gray-400">Grado</span>
               </div>
             </div>
             {/* CARD */}
             <div className="bg-white p-4 rounded-md flex gap-4 w-full md:w-[48%] xl:w-[45%] 2xl:w-[48%]">
-              <Image
-                src="/singleLesson.png"
-                alt=""
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
+              <BookOpenCheck className="w-6 h-6" />
               <div className="">
                 <h1 className="text-xl font-semibold">
                   {student.class._count.lessons}
@@ -196,13 +172,7 @@ const SingleStudentPage = async ({
             </div>
             {/* CARD */}
             <div className="bg-white p-4 rounded-md flex gap-4 w-full md:w-[48%] xl:w-[45%] 2xl:w-[48%]">
-              <Image
-                src="/singleClass.png"
-                alt=""
-                width={24}
-                height={24}
-                className="w-6 h-6"
-              />
+              <Presentation className="w-6 h-6" />
               <div className="">
                 <h1 className="text-xl font-semibold">{student.class.name}</h1>
                 <span className="text-sm text-gray-400">Clase</span>

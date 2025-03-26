@@ -4,10 +4,10 @@ import BigCalendar from "@/components/BigCalender";
 import EventCalendar from "@/components/EventCalendar";
 import PostGeneral from "@/components/PostGeneral";
 import { createClient } from "@/utils/supabase/server";
-
+import { useUserRole } from "@/utils/hooks";
 const StudentPage = async () => {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await useUserRole();
   const userId = user?.id;
 
   const { data: classItem, error: classError } = await supabase

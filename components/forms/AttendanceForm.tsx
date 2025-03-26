@@ -97,8 +97,8 @@ const AttendanceForm = ({
           <label className="text-xs text-gray-500">Estudiante</label>
           <select
             className="ring-[1.5px] ring-gray-300 p-2 rounded-md text-sm w-full"
-            {...register("student_id")}
-            defaultValue={data?.student_id || ""}
+            {...register("studentId")}
+            defaultValue={data?.studentId || ""}
           >
             <option value="">Seleccionar estudiante</option>
             {relatedData?.students?.map((student: { id: string; name: string; surname: string }) => (
@@ -107,9 +107,9 @@ const AttendanceForm = ({
               </option>
             ))}
           </select>
-          {errors.student_id?.message && (
+          {errors.studentId?.message && (
             <p className="text-xs text-red-400">
-              {errors.student_id.message.toString()}
+              {errors.studentId.message.toString()}
             </p>
           )}
         </div>
@@ -118,8 +118,8 @@ const AttendanceForm = ({
           <label className="text-xs text-gray-500">Lección</label>
           <select
             className="ring-[1.5px] ring-gray-300 p-2 rounded-md text-sm w-full"
-            {...register("lesson_id")}
-            defaultValue={data?.lesson_id || ""}
+            {...register("lessonId")}
+            defaultValue={data?.lessonId || ""}
           >
             <option value="">Seleccionar lección</option>
             {relatedData?.lessons?.map((lesson: { id: number; name: string; subject: { name: string } }) => (
@@ -128,9 +128,9 @@ const AttendanceForm = ({
               </option>
             ))}
           </select>
-          {errors.lesson_id?.message && (
+          {errors.lessonId?.message && (
             <p className="text-xs text-red-400">
-              {errors.lesson_id.message.toString()}
+              {errors.lessonId.message.toString()}
             </p>
           )}
         </div>

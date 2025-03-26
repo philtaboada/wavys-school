@@ -1,6 +1,5 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   ClassSchema,
   ExamSchema,
@@ -24,7 +23,7 @@ export const createSubject = async (
     
     // Crear el subject
     const { data: subjectData, error: subjectError } = await supabase
-      .from('subject')
+      .from('Subject')
       .insert({
         name: data.name
       })
@@ -41,7 +40,7 @@ export const createSubject = async (
       }));
       
       const { error: relationError } = await supabase
-        .from('teacher_subject')
+        .from('subject_teacher')
         .insert(teacherConnections);
       
       if (relationError) throw relationError;
@@ -63,7 +62,7 @@ export const updateSubject = async (
     
     // Actualizar el subject
     const { error: subjectError } = await supabase
-      .from('subject')
+      .from('Subject')
       .update({ name: data.name })
       .eq('id', data.id);
 
@@ -71,7 +70,7 @@ export const updateSubject = async (
     
     // Eliminar relaciones existentes
     const { error: deleteError } = await supabase
-      .from('teacher_subject')
+      .from('subject_teacher')
       .delete()
       .eq('subjectId', data.id);
       
@@ -85,7 +84,7 @@ export const updateSubject = async (
       }));
       
       const { error: relationError } = await supabase
-        .from('teacher_subject')
+        .from('subject_teacher')
         .insert(teacherConnections);
       
       if (relationError) throw relationError;
@@ -108,7 +107,7 @@ export const deleteSubject = async (
     
     // Eliminar relaciones primero
     const { error: relationError } = await supabase
-      .from('teacher_subject')
+      .from('subject_teacher')
       .delete()
       .eq('subjectId', id);
       
@@ -116,7 +115,7 @@ export const deleteSubject = async (
     
     // Eliminar el subject
     const { error } = await supabase
-      .from('subject')
+      .from('Subject')
       .delete()
       .eq('id', id);
 
@@ -137,7 +136,7 @@ export const createClass = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('class')
+      .from('Class')
       .insert(data);
 
     if (error) throw error;
@@ -157,7 +156,7 @@ export const updateClass = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('class')
+      .from('Class')
       .update(data)
       .eq('id', data.id);
 
@@ -179,7 +178,7 @@ export const deleteClass = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('class')
+      .from('Class')
       .delete()
       .eq('id', id);
 
@@ -216,7 +215,7 @@ export const createTeacher = async (
     
     // Crear registro en la tabla de teachers
     const { error: teacherError } = await supabase
-      .from('teacher')
+      .from('Teacher')
       .insert({
         id: authData.user?.id,
         username: data.username,
@@ -242,7 +241,7 @@ export const createTeacher = async (
       }));
       
       const { error: relationError } = await supabase
-        .from('teacher_subject')
+        .from('subject_teacher')
         .insert(subjectConnections);
       
       if (relationError) throw relationError;
@@ -276,7 +275,7 @@ export const updateTeacher = async (
     
     // Actualizar registro en la tabla de teachers
     const { error: teacherError } = await supabase
-      .from('teacher')
+      .from('Teacher')
       .update({
         username: data.username,
         name: data.name,
@@ -296,7 +295,7 @@ export const updateTeacher = async (
     
     // Eliminar relaciones existentes
     const { error: deleteError } = await supabase
-      .from('teacher_subject')
+      .from('subject_teacher')
       .delete()
       .eq('teacherId', data.id);
       
@@ -310,7 +309,7 @@ export const updateTeacher = async (
       }));
       
       const { error: relationError } = await supabase
-        .from('teacher_subject')
+        .from('subject_teacher')
         .insert(subjectConnections);
       
       if (relationError) throw relationError;
@@ -333,7 +332,7 @@ export const deleteTeacher = async (
     
     // Eliminar relaciones primero
     const { error: relationError } = await supabase
-      .from('teacher_subject')
+      .from('subject_teacher')
       .delete()
       .eq('teacherId', id);
       
@@ -341,7 +340,7 @@ export const deleteTeacher = async (
     
     // Eliminar el registro de teacher
     const { error: teacherError } = await supabase
-      .from('teacher')
+      .from('Teacher')
       .delete()
       .eq('id', id);
 
@@ -368,7 +367,7 @@ export const createStudent = async (
     
     // Verificar capacidad de la clase
     const { data: classData, error: classError } = await supabase
-      .from('class')
+      .from('Class')
       .select('id, capacity')
       .eq('id', data.classId)
       .single();
@@ -376,7 +375,7 @@ export const createStudent = async (
     if (classError) throw classError;
     
     const { count: studentCount, error: countError } = await supabase
-      .from('student')
+      .from('Student')
       .select('id', { count: 'exact', head: true })
       .eq('classId', data.classId);
       
@@ -403,7 +402,7 @@ export const createStudent = async (
     
     // Crear registro en la tabla de students
     const { error: studentError } = await supabase
-      .from('student')
+      .from('Student')
       .insert({
         id: authData.user?.id,
         username: data.username,
@@ -452,7 +451,7 @@ export const updateStudent = async (
     
     // Actualizar registro en la tabla de students
     const { error: studentError } = await supabase
-      .from('student')
+      .from('Student')
       .update({
         username: data.username,
         name: data.name,
@@ -490,7 +489,7 @@ export const deleteStudent = async (
     
     // Eliminar el registro de student
     const { error: studentError } = await supabase
-      .from('student')
+      .from('Student')
       .delete()
       .eq('id', id);
 
@@ -531,7 +530,7 @@ export const createExam = async (
     // }
     
     const { error } = await supabase
-      .from('exam')
+      .from('Exam')
       .insert({
         title: data.title,
         startTime: data.startTime,
@@ -571,7 +570,7 @@ export const updateExam = async (
     // }
     
     const { error } = await supabase
-      .from('exam')
+      .from('Exam')
       .update({
         title: data.title,
         startTime: data.startTime,
@@ -613,7 +612,7 @@ export const deleteExam = async (
     // }
     
     const { error } = await supabase
-      .from('exam')
+      .from('Exam')
       .delete()
       .eq('id', id);
 
@@ -634,7 +633,7 @@ export const createAnnouncement = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('announcement')
+      .from('Announcement')
       .insert({
         title: data.title,
         description: data.description,
@@ -659,7 +658,7 @@ export const updateAnnouncement = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('announcement')
+      .from('Announcement')
       .update({
         title: data.title,
         description: data.description,
@@ -686,7 +685,7 @@ export const deleteAnnouncement = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('announcement')
+      .from('Announcement')
       .delete()
       .eq('id', id);
 
@@ -723,7 +722,7 @@ export const createParent = async (
     
     // Crear registro en la tabla de parents
     const { error: parentError } = await supabase
-      .from('parent')
+      .from('Parent')
       .insert({
         id: authData.user?.id,
         username: data.username,
@@ -764,7 +763,7 @@ export const updateParent = async (
     
     // Actualizar registro en la tabla de parents
     const { error: parentError } = await supabase
-      .from('parent')
+      .from('Parent')
       .update({
         username: data.username,
         name: data.name,
@@ -794,7 +793,7 @@ export const deleteParent = async (
     
     // Verificar si hay estudiantes relacionados
     const { count, error: countError } = await supabase
-      .from('student')
+      .from('Student')
       .select('id', { count: 'exact', head: true })
       .eq('parentId', id);
       
@@ -810,7 +809,7 @@ export const deleteParent = async (
     
     // Eliminar el registro de parent
     const { error: parentError } = await supabase
-      .from('parent')
+      .from('Parent')
       .delete()
       .eq('id', id);
 
@@ -838,17 +837,17 @@ export const createAttendance = async (
     
     // Verificar si la asistencia ya existe para evitar duplicados
     const { data: existingAttendance, error: checkError } = await supabase
-      .from('attendance')
+      .from('Attendance')
       .select('id')
-      .eq('student_id', data.student_id)
-      .eq('lesson_id', data.lesson_id)
+      .eq('studentId', data.studentId)
+      .eq('lessonId', data.lessonId)
       .eq('date', new Date(data.date).toISOString().split('T')[0])
       .single();
     
     if (!checkError && existingAttendance) {
       // Actualizar la asistencia existente
       const { error: updateError } = await supabase
-        .from('attendance')
+        .from('Attendance')
         .update({
           present: data.present,
           date: data.date
@@ -859,12 +858,12 @@ export const createAttendance = async (
     } else {
       // Crear nueva asistencia
       const { error } = await supabase
-        .from('attendance')
+        .from('Attendance')
         .insert({
           date: data.date,
           present: data.present,
-          student_id: data.student_id,
-          lesson_id: data.lesson_id
+          studentId: data.studentId,
+          lessonId: data.lessonId
         });
   
       if (error) throw error;
@@ -888,12 +887,12 @@ export const updateAttendance = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('attendance')
+      .from('Attendance')
       .update({
         date: data.date,
         present: data.present,
-        student_id: data.student_id,
-        lesson_id: data.lesson_id
+        studentId: data.studentId,
+        lessonId: data.lessonId
       })
       .eq('id', data.id);
 
@@ -914,7 +913,7 @@ export const deleteAttendance = async (
     const supabase = await createClient();
     
     const { error } = await supabase
-      .from('attendance')
+      .from('Attendance')
       .delete()
       .eq('id', id);
 

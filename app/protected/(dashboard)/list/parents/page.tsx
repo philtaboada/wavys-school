@@ -3,24 +3,10 @@ import Pagination from "@/components/Pagination";
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
 import { ITEM_PER_PAGE } from "@/lib/settings";
-import Image from "next/image";
-
+import { ArrowDownNarrowWide, ListFilterPlus } from "lucide-react";
 import { createClient } from "@/utils/supabase/server";
-
-// Tipos adaptados para Supabase
-type Student = {
-  id: string;
-  name: string;
-};
-
-type Parent = {
-  id: string;
-  name: string;
-  email: string | null;
-  phone: string;
-  address: string;
-  students: Student[];
-};
+import { useUserRole } from "@/utils/hooks";
+import { Parent } from "@/utils/types";
 
 const ParentListPage = async ({
   searchParams,
@@ -39,8 +25,7 @@ const ParentListPage = async ({
   const searchText = params.search || '';
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role;
+  const { role } = await useUserRole();
 
   const columns = [
     {
@@ -147,10 +132,10 @@ const ParentListPage = async ({
             <TableSearch />
             <div className="flex items-center gap-4 self-end">
               <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-                <Image src="/filter.png" alt="" width={14} height={14} />
+                <ListFilterPlus className="w-4 h-4" />
               </button>
               <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
-                <Image src="/sort.png" alt="" width={14} height={14} />
+                <ArrowDownNarrowWide className="w-4 h-4" />
               </button>
               {role === "admin" && <FormContainer table="parent" type="create" />}
             </div>

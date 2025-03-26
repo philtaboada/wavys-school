@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import InputField from "../InputField";
@@ -7,59 +8,101 @@ import {
   announcementSchema,
   AnnouncementSchema,
 } from "@/lib/formValidationSchemas";
-import {
-  createAnnouncement,
-  updateAnnouncement,
-} from "@/lib/actions";
-import { useActionState } from 'react';
-import { Dispatch, SetStateAction, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import {
+  useCreateAnnouncement,
+  useUpdateAnnouncement
+} from "@/utils/queries/announcementQueries";
+import { Announcement } from "@/utils/types";
+
+interface AnnouncementFormProps {
+  type: "create" | "update";
+  data?: Announcement;
+  setOpen: (open: boolean) => void;
+  relatedData?: {
+    classes?: { id: number; name: string }[];
+  };
+}
 
 const AnnouncementForm = ({
   type,
   data,
   setOpen,
   relatedData,
-}: {
-  type: "create" | "update";
-  data?: any;
-  setOpen: Dispatch<SetStateAction<boolean>>;
-  relatedData?: any;
-}) => {
+}: AnnouncementFormProps) => {
   const {
     register,
     handleSubmit,
     formState: { errors },
+    reset
   } = useForm<AnnouncementSchema>({
     resolver: zodResolver(announcementSchema),
-  });
-
-  const [state, formAction] = useActionState(
-    type === "create" ? createAnnouncement : updateAnnouncement,
-    {
-      success: false,
-      error: false,
+    defaultValues: {
+      id: data?.id,
+      title: data?.title || "",
+      description: data?.description || "",
+      date: data?.date ? new Date(data.date) : new Date(),
+      classId: data?.classId || undefined,
     }
-  );
-
-  const onSubmit = handleSubmit((data) => {
-    console.log(data);
-    formAction(data);
   });
+
+  // Estado para errores personalizados
+  const [customError, setCustomError] = useState<string | null>(null);
+
+  // Utilizar los hooks de mutación de TanStack Query
+  const createMutation = useCreateAnnouncement();
+  const updateMutation = useUpdateAnnouncement();
 
   const router = useRouter();
 
-  useEffect(() => {
-    if (state.success) {
-      toast(`Anuncio ha sido ${type === "create" ? "creado" : "actualizado"}!`);
-      setOpen(false);
-      router.refresh();
+  const onSubmit = handleSubmit((formData) => {
+    setCustomError(null);
+
+    if (type === "create") {
+      createMutation.mutate({
+        title: formData.title,
+        description: formData.description,
+        date: formData.date.toISOString(),
+        classId: formData.classId || undefined,
+      }, {
+        onSuccess: () => {
+          toast.success("Anuncio creado correctamente");
+          reset();
+          setOpen(false);
+          router.refresh();
+        },
+        onError: (error) => {
+          setCustomError(error.message);
+          toast.error("Error al crear el anuncio");
+        }
+      });
+    } else if (formData.id) {
+      updateMutation.mutate({
+        id: formData.id,
+        title: formData.title,
+        description: formData.description,
+        date: formData.date.toISOString(),
+        classId: formData.classId || undefined,
+      }, {
+        onSuccess: () => {
+          toast.success("Anuncio actualizado correctamente");
+          setOpen(false);
+          router.refresh();
+        },
+        onError: (error) => {
+          setCustomError(error.message);
+          toast.error("Error al actualizar el anuncio");
+        }
+      });
     }
-  }, [state, router, type, setOpen]);
+  });
+
+  // Determinar si está cargando
+  const isLoading = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <form className="flex flex-col gap-8" onSubmit={onSubmit}>
+    <form className="m-4 flex flex-col gap-8" onSubmit={onSubmit}>
       <h1 className="text-xl font-semibold">
         {type === "create" ? "Crear un nuevo anuncio" : "Actualizar el anuncio"}
       </h1>
@@ -68,14 +111,12 @@ const AnnouncementForm = ({
         <InputField
           label="Título"
           name="title"
-          defaultValue={data?.title}
           register={register}
           error={errors?.title}
         />
         <InputField
           label="Descripción"
           name="description"
-          defaultValue={data?.description}
           register={register}
           error={errors?.description}
           textarea
@@ -83,7 +124,6 @@ const AnnouncementForm = ({
         <InputField
           label="Fecha"
           name="date"
-          defaultValue={data?.date}
           register={register}
           error={errors?.date}
           type="datetime-local"
@@ -92,7 +132,6 @@ const AnnouncementForm = ({
           <InputField
             label="Id"
             name="id"
-            defaultValue={data?.id}
             register={register}
             error={errors?.id}
             hidden
@@ -103,10 +142,9 @@ const AnnouncementForm = ({
           <select
             className="ring-[1.5px] ring-gray-300 p-2 rounded-md text-sm w-full"
             {...register("classId")}
-            defaultValue={data?.classId || ""}
           >
             <option value="">Sin clase específica</option>
-            {relatedData?.classes?.map((classItem: { id: number; name: string }) => (
+            {relatedData?.classes?.map((classItem) => (
               <option value={classItem.id} key={classItem.id}>
                 {classItem.name}
               </option>
@@ -119,11 +157,21 @@ const AnnouncementForm = ({
           )}
         </div>
       </div>
-      {state.error && (
-        <span className="text-red-500">¡Algo salió mal!</span>
+      
+      {/* Mostrar error personalizado si existe */}
+      {customError && (
+        <div className="text-red-500 bg-red-50 p-2 rounded-md text-sm">
+          {customError}
+        </div>
       )}
-      <button className="bg-blue-400 text-white p-2 rounded-md">
-        {type === "create" ? "Crear" : "Actualizar"}
+
+      <button 
+        className={`bg-blue-400 text-white p-2 rounded-md ${isLoading ? 'opacity-70 cursor-not-allowed' : ''}`} 
+        disabled={isLoading}
+      >
+        {isLoading 
+          ? (type === "create" ? "Creando..." : "Actualizando...") 
+          : (type === "create" ? "Crear" : "Actualizar")}
       </button>
     </form>
   );
