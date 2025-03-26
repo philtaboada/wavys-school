@@ -4,9 +4,15 @@ export type Class = {
   name: string;
   capacity?: number;
   gradeId?: number;
+  supervisorId?: string;
   Grade?: {
     id: number;
+    level: string;
+  };
+  Supervisor?: {
+    id: string;
     name: string;
+    surname: string;
   };
   _count?: {
     students: number;

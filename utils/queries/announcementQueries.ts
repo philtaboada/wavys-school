@@ -2,23 +2,27 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Announcement, AnnouncementListParams, AnnouncementListResult, CreateAnnouncementParams, UpdateAnnouncementParams } from '@/utils/types';
+import { Announcement, AnnouncementListParams, AnnouncementListResult, CreateAnnouncementParams, UpdateAnnouncementParams } from '@/utils/types/announcement';
 
 /**
  * Hook para obtener la lista de anuncios con filtrado y paginación
  */
-export function useAnnouncementList(params: AnnouncementListParams) {
-  const { page, search, classId, startDate, endDate, global } = params;
+export function useAnnouncementList(params: AnnouncementListParams & { userRole?: string; userId?: string }) {
+  const { page, search, classId, startDate, endDate, global, userRole, userId } = params;
   
   return useSupabaseQuery<AnnouncementListResult>(
-    ['announcement', 'list', page, search, classId, startDate, endDate, global],
+    ['announcement', 'list', page, search, classId, startDate, endDate, global, userRole, userId],
     async (supabase) => {
       // Construir la consulta base
       let query = supabase
         .from('Announcement')
         .select(`
-          *,
-          Class(id, name, Grade(id, name))
+          id, title, description, date, classId,
+          class:classId (
+            id, 
+            name, 
+            grade:gradeId (id, level)
+          )
         `, { count: 'exact' });
 
       // Aplicar filtros de búsqueda
@@ -44,6 +48,22 @@ export function useAnnouncementList(params: AnnouncementListParams) {
       // Filtrar por fecha de fin
       if (endDate) {
         query = query.lte('date', endDate);
+      }
+
+      // Filtros específicos según el rol del usuario
+      if (userRole && userRole !== 'admin' && userId) {
+        if (userRole === 'teacher') {
+          // Profesores ven anuncios globales y de clases donde enseñan
+          query = query.or(`classId.is.null,class.lessons.teacherId.eq.${userId}`);
+        } 
+        else if (userRole === 'student') {
+          // Estudiantes ven anuncios globales y de su clase
+          query = query.or(`classId.is.null,class.students.id.eq.${userId}`);
+        } 
+        else if (userRole === 'parent') {
+          // Padres ven anuncios globales y de clases de sus hijos
+          query = query.or(`classId.is.null,class.students.parentId.eq.${userId}`);
+        }
       }
 
       // Paginación
@@ -91,8 +111,12 @@ export function useStudentAnnouncements(studentId: string, page: number = 1) {
       const query = supabase
         .from('Announcement')
         .select(`
-          *,
-          Class(id, name, Grade(id, name))
+          id, title, description, date, classId,
+          class:classId (
+            id, 
+            name, 
+            grade:gradeId (id, level)
+          )
         `, { count: 'exact' })
         .or(`classId.is.null,classId.eq.${student.classId}`)
         .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)

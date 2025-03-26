@@ -1,7 +1,11 @@
 'use client';
 
 import { useState } from "react";
-import { Dialog, DialogContent, DialogTitle } from "@radix-ui/react-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import AttendanceFormTQ from "@/components/forms/AttendanceFormTQ";
 import TeacherFormTQ from "@/components/forms/TeacherFormTQ";
 import StudentFormTQ from "@/components/forms/StudentFormTQ";
@@ -14,7 +18,8 @@ import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CircleFadingPlus, Pencil, Trash } from "lucide-react";
-import { Attendance, Teacher, Student, Assignment } from "@/utils/types";
+import { Attendance, Teacher, Student, Assignment, Exam } from "@/utils/types";
+import Loading from "@/app/protected/(dashboard)/list/loading";
 
 // Tipos para las entidades relacionadas
 interface StudentData {
@@ -44,7 +49,7 @@ interface FormContainerTQProps {
   table: string; // "attendance" | "teacher" | "student" | "assignment" | "grades" | "exams" etc.
   type: "create" | "update" | "delete";
   id?: number;
-  data?: Attendance | Teacher | Student | Assignment;
+  data?: Attendance | Teacher | Student | Assignment | Exam | undefined;
 }
 
 export default function FormContainerTQ({
@@ -85,7 +90,7 @@ export default function FormContainerTQ({
         // Lecciones con sus materias
         const { data: lessonsData } = await supabase
           .from('Lesson')
-          .select('id, name, Subject:subject_id (id, name)');
+          .select('id, name, Subject:subjectId (id, name)');
         
         // Transformar los datos al formato esperado
         const lessons = lessonsData?.map((lesson: any) => ({
@@ -300,7 +305,7 @@ export default function FormContainerTQ({
               {type === "create" ? "Crear nuevo registro" : "Actualizar registro"}
             </DialogTitle>
             {isLoading ? (
-              <div className="p-8 text-center">Cargando datos...</div>
+              <Loading />
             ) : (
               renderForm()
             )}

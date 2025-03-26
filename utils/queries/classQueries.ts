@@ -2,23 +2,23 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Class, ClassListParams, ClassListResult, CreateClassParams, UpdateClassParams } from '@/utils/types';
+import { Class, ClassListParams, ClassListResult, CreateClassParams, UpdateClassParams } from '@/utils/types/class';
 
 /**
  * Hook para obtener la lista de clases con filtrado y paginación
  */
-export function useClassList(params: ClassListParams) {
-  const { page, search, gradeId } = params;
+export function useClassList(params: ClassListParams & { userRole?: string; userId?: string }) {
+  const { page, search, gradeId, userRole, userId } = params;
   
   return useSupabaseQuery<ClassListResult>(
-    ['class', 'list', page, search, gradeId],
+    ['class', 'list', page, search, gradeId, userRole, userId],
     async (supabase) => {
       // Construir la consulta base
       let query = supabase
         .from('Class')
         .select(`
           *,
-          Grade(id, name)
+          Grade:gradeId (id, level)
         `, { count: 'exact' });
 
       // Aplicar filtros de búsqueda
@@ -29,6 +29,42 @@ export function useClassList(params: ClassListParams) {
       // Filtrar por grado
       if (gradeId) {
         query = query.eq('gradeId', gradeId);
+      }
+
+      // Filtros específicos según el rol del usuario
+      if (userRole && userRole !== 'admin' && userId) {
+        if (userRole === 'teacher') {
+          // Si el profesor es supervisor de alguna clase
+          query = query.eq('supervisorId', userId);
+        } 
+        else if (userRole === 'student') {
+          // Obtener solo la clase del estudiante
+          const { data: studentData } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('id', userId)
+            .single();
+          
+          if (studentData && studentData.classId) {
+            query = query.eq('id', studentData.classId);
+          } else {
+            return { data: [], count: 0 };
+          }
+        } 
+        else if (userRole === 'parent') {
+          // Obtener las clases de los estudiantes del padre
+          const { data: parentStudents } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('parentId', userId);
+          
+          if (parentStudents && parentStudents.length > 0) {
+            const classIds = parentStudents.map(student => student.classId);
+            query = query.in('id', classIds);
+          } else {
+            return { data: [], count: 0 };
+          }
+        }
       }
 
       // Paginación
@@ -55,8 +91,23 @@ export function useClassList(params: ClassListParams) {
           throw new Error(`Error al contar estudiantes: ${countError.message}`);
         }
         
+        // Obtener información del supervisor si existe
+        let supervisor = null;
+        if (classItem.supervisorId) {
+          const { data: supervisorData, error: supervisorError } = await supabase
+            .from('Teacher')
+            .select('id, name, surname')
+            .eq('id', classItem.supervisorId)
+            .single();
+            
+          if (!supervisorError && supervisorData) {
+            supervisor = supervisorData;
+          }
+        }
+        
         result.push({
           ...classItem,
+          Supervisor: supervisor ?? undefined,
           _count: {
             students: studentCount || 0
           }

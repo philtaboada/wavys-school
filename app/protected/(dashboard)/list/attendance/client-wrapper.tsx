@@ -2,13 +2,14 @@
 
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
+import Loading from "../loading";
 
 // Cargar el componente cliente de manera dinámica
 const AttendanceClientTQ = dynamic(() => import("./client-tq"), {
   ssr: false,
   loading: () => (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
-      <p className="text-center py-8">Cargando interfaz de asistencia con TanStack Query...</p>
+      <Loading />
     </div>
   ),
 });
@@ -23,7 +24,7 @@ export default function ClientWrapper({ initialRole, initialUserId }: ClientWrap
     <Suspense
       fallback={
         <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
-          <p className="text-center py-8">Cargando datos de asistencia...</p>
+          <Loading />
         </div>
       }
     >

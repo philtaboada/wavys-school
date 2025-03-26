@@ -43,10 +43,10 @@ interface Class {
 const SingleStudentPage = async ({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) => {
-  // Simplemente usar params.id sin desestructurar
-  const id = params.id;
+  // Usar await para acceder a las propiedades de params correctamente
+  const { id } = await params;
 
   const supabase = await createClient();
   const { role } = await useUserRole();

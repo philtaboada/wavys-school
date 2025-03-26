@@ -56,14 +56,17 @@
     from {
       height: 0;
     }
+
     to {
       height: var(--radix-accordion-content-height);
     }
   }
+
   @keyframes accordion-up {
     from {
       height: var(--radix-accordion-content-height);
     }
+
     to {
       height: 0;
     }
@@ -73,10 +76,12 @@
 @utility container {
   margin-inline: auto;
   padding-inline: 2rem;
-  @media (width >= --theme(--breakpoint-sm)) {
+
+  @media (width >=--theme(--breakpoint-sm)) {
     max-width: none;
   }
-  @media (width >= 1400px) {
+
+  @media (width >=1400px) {
     max-width: 1400px;
   }
 }
@@ -90,6 +95,7 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
+
   *,
   ::after,
   ::before,
@@ -102,20 +108,20 @@
 @layer base {
   :root {
 
-    --lamaSky: "#990000",
-    --llamaSkyLight: "#EDF9FD",
-    --lamaPurple: "#990000",
-    --lamaPurpleLight: "#F1F0FF",
-    --lamaYellow: "#FFB3B3",
-    --lamaYellowLight: "#d8d8d8",
-    --lamaRed: "#fe0404",
-    --lamaRedLight: "#ff6767",
-    --lamaGold: "#d3a24b",
-    --lamaGoldLight: "#f3d59f",
-    --lamaGray: "#4c4c4c",
-    --lamaGrayLight: "#d8d8d8",
-    --lamaRedLighta: "#FFE5E5",
-    --lamaRedLightb: "#FFB3B3",
+    --lamaSky: 0 100% 30%;
+    --llamaSkyLight: 190 80% 95%;
+    --lamaPurple: 0 100% 30%;
+    --lamaPurpleLight: 252 100% 97%;
+    --lamaYellow: 0 100% 85%;
+    --lamaYellowLight: 0 0% 85%;
+    --lamaRed: 0 100% 50%;
+    --lamaRedLight: 0 100% 70%;
+    --lamaGold: 36 60% 56%;
+    --lamaGoldLight: 36 80% 79%;
+    --lamaGray: 0 0% 30%;
+    --lamaGrayLight: 0 0% 85%;
+    --lamaRedLighta: 0 100% 95%;
+    --lamaRedLightb: 0 100% 85%;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -175,6 +181,7 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -258,29 +265,36 @@
 .rbc-event:nth-child(1) {
   background-color: #e2f8ff !important;
 }
+
 .rbc-event:nth-child(2) {
   background-color: #fefce8 !important;
 }
+
 .rbc-event:nth-child(3) {
   background-color: #f2f1ff !important;
 }
+
 .rbc-event:nth-child(4) {
   background-color: #fdf2fb !important;
 }
+
 .rbc-event:nth-child(5) {
   background-color: #e2f8ff !important;
 }
+
 .rbc-event:nth-child(6) {
   background-color: #fefce8 !important;
 }
+
 .rbc-event:nth-child(7) {
   background-color: #f2f1ff !important;
 }
+
 .rbc-event:nth-child(8) {
   background-color: #fdf2fb !important;
 }
 
-.rbc-event-label{
+.rbc-event-label {
   color: gray !important;
   margin-bottom: 5px;
 }

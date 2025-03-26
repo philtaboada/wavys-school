@@ -9,6 +9,7 @@ import FormContainerTQ from "@/components/FormContainerTQ";
 import { useAssignmentList } from '@/utils/queries/assignmentQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Assignment } from '@/utils/types';
+import Loading from '../loading';
 
 interface AssignmentsClientTQProps {
   initialRole?: string;
@@ -163,7 +164,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
       {/* TOP */}
       <div className="flex items-center justify-between">
         <h1 className="hidden md:block text-lg font-semibold">
-          Todos los trabajos (con TanStack Query)
+          Todos los trabajos
         </h1>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch
@@ -206,7 +207,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
       {/* LIST */}
       {isLoading ? (
         <div className="py-8 text-center">
-          <p>Cargando datos de tareas...</p>
+          <Loading />
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">

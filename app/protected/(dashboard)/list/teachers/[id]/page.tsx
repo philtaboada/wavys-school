@@ -31,10 +31,11 @@ import { HeartPulse, Calendar1, Mail, Phone, CalendarPlus, BookOpenCheck, Presen
   };
 
 const SingleTeacherPage = async ({
-  params: { id },
+  params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) => {
+  const { id } = await params;
   const supabase = await createClient();
   const { role, userId } = await useUserRole();
 
@@ -56,8 +57,8 @@ const SingleTeacherPage = async ({
   // 2. Obtener conteo de asignaturas del profesor
   const { data: subjectsData, error: subjectsError } = await supabase
     .from('subject_teacher')
-    .select('subject_id, Subject(*)')
-    .eq('teacher_id', id);
+    .select('subjectId, Subject(*)')
+    .eq('teacherId', id);
 
   const subjectsCount = subjectsData?.length || 0;
 

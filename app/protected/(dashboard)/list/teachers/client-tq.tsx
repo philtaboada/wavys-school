@@ -11,6 +11,7 @@ import { useTeacherList } from '@/utils/queries/teacherQueries';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye } from 'lucide-react';
 import { Teacher } from '@/utils/types';
 import Link from 'next/link';
+import Loading from '../loading';
 
 interface TeacherClientTQProps {
   initialRole?: string;
@@ -157,7 +158,7 @@ export default function TeacherClientTQ({ initialRole, initialUserId }: TeacherC
       {/* TOP */}
       <div className="flex items-center justify-between">
         <h1 className="hidden md:block text-lg font-semibold">
-          Todos los profesores (con TanStack Query)
+          Todos los profesores
         </h1>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch
@@ -182,7 +183,7 @@ export default function TeacherClientTQ({ initialRole, initialUserId }: TeacherC
       {/* LIST */}
       {isLoading ? (
         <div className="py-8 text-center">
-          <p>Cargando listado de profesores...</p>
+          <Loading />
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">

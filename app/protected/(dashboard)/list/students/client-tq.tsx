@@ -10,6 +10,7 @@ import { useStudentList } from '@/utils/queries/studentQueries';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye, CircleUser } from 'lucide-react';
 import { Student } from '@/utils/types';
 import Link from 'next/link';
+import Loading from '../loading';
 
 interface StudentClientTQProps {
   initialRole?: string;
@@ -142,7 +143,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
       {/* TOP */}
       <div className="flex items-center justify-between">
         <h1 className="hidden md:block text-lg font-semibold">
-          Todos los estudiantes (con TanStack Query)
+          Todos los estudiantes
         </h1>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <TableSearch
@@ -167,7 +168,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
       {/* LIST */}
       {isLoading ? (
         <div className="py-8 text-center">
-          <p>Cargando listado de estudiantes...</p>
+          <Loading />
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
