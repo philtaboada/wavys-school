@@ -208,7 +208,7 @@ const FormModal = ({
               className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
               onClick={() => setOpen(false)}
             >
-              <X />
+              <X className="w-6 h-6" />
             </button>
           </div>
         </div>

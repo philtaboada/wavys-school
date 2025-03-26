@@ -299,16 +299,19 @@ export default function FormContainerTQ({
     <>
       {renderButton()}
       {(type === "create" || type === "update") && (
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
+        <Dialog 
+          open={open} 
+          onOpenChange={setOpen}
+        >
+          <DialogContent 
+            className="flex flex-col p-0 gap-0 border-none sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[1400px] w-[98vw] max-h-[90vh] shadow-2xl"
+          >
             <DialogTitle className="sr-only">
               {type === "create" ? "Crear nuevo registro" : "Actualizar registro"}
             </DialogTitle>
-            {isLoading ? (
-              <Loading />
-            ) : (
-              renderForm()
-            )}
+            <div className="w-full overflow-auto custom-scrollbar">
+              {renderForm()}
+            </div>
           </DialogContent>
         </Dialog>
       )}

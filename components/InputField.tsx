@@ -1,46 +1,52 @@
-import { FieldError, UseFormRegister } from "react-hook-form";
+import { RegisterOptions, UseFormRegister } from "react-hook-form";
+import { ReactNode } from "react";
 
 interface InputFieldProps {
   label: string;
   name: string;
-  register: UseFormRegister<any>;
-  error?: FieldError;
+  placeholder?: string;
   type?: string;
-  defaultValue?: any;
+  defaultValue?: string | number;
+  register: UseFormRegister<any>;
+  registerOptions?: RegisterOptions;
+  error?: any;
   hidden?: boolean;
-  textarea?: boolean;
+  className?: string;
+  icon?: ReactNode;
 }
 
 const InputField = ({
   label,
   name,
-  register,
-  error,
+  placeholder,
   type = "text",
   defaultValue,
-  hidden,
+  register,
+  registerOptions,
+  error,
+  hidden = false,
+  className = "",
+  icon
 }: InputFieldProps) => {
   if (hidden) {
     return (
-      <input
-        type="hidden"
-        defaultValue={defaultValue}
-        {...register(name)}
-      />
+      <input type="hidden" {...register(name, registerOptions)} defaultValue={defaultValue} />
     );
   }
 
   return (
-    <div className="flex flex-col space-y-1.5">
-      <label htmlFor={name} className="text-sm font-medium text-gray-700">
+    <div className="flex flex-col gap-2">
+      <label htmlFor={name} className="text-sm font-medium text-gray-700 flex items-center gap-2">
+        {icon && <span className="text-gray-400">{icon}</span>}
         {label}
       </label>
       <input
-        type={type}
         id={name}
+        type={type}
+        placeholder={placeholder}
         defaultValue={defaultValue}
-        className="ring-[1.5px] ring-gray-300 p-3 rounded-md text-sm w-full focus:ring-blue-500 focus:ring-2 focus:outline-none transition duration-200"
-        {...register(name)}
+        {...register(name, registerOptions)}
+        className={`ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 ${className}`}
       />
       {error?.message && (
         <p className="text-xs text-red-500 mt-1 flex items-center gap-1">

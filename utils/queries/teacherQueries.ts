@@ -276,3 +276,80 @@ export function useDeleteTeacher() {
     }
   );
 }
+
+/**
+ * Hook para obtener detalles de un profesor específico por ID
+ */
+export function useTeacherDetail(teacherId: string) {
+  return useSupabaseQuery<Teacher & { counts: { subjects: number; lessons: number; classes: number; attendance: number } }>(
+    ['teacher', 'detail', teacherId],
+    async (supabase) => {
+      if (!teacherId) {
+        throw new Error('Se requiere el ID del profesor');
+      }
+      
+      // 1. Obtener información básica del profesor
+      const { data: teacherData, error: teacherError } = await supabase
+        .from('Teacher')
+        .select('*')
+        .eq('id', teacherId)
+        .single();
+      
+      if (teacherError) {
+        throw new Error(`Error al obtener datos del profesor: ${teacherError.message}`);
+      }
+      
+      if (!teacherData) {
+        throw new Error('No se encontró el profesor');
+      }
+
+      // 2. Obtener conteo de asignaturas del profesor
+      const { data: subjectsData, error: subjectsError } = await supabase
+        .from('subject_teacher')
+        .select('subjectId, Subject(*)')
+        .eq('teacherId', teacherId);
+
+      if (subjectsError) {
+        console.error('Error al obtener asignaturas:', subjectsError);
+      }
+
+      const subjectsCount = subjectsData?.length || 0;
+
+      // 3. Obtener conteo de lecciones del profesor
+      const { count: lessonsCount, error: lessonsError } = await supabase
+        .from('Lesson')
+        .select('*', { count: 'exact', head: true })
+        .eq('teacherId', teacherId);
+
+      if (lessonsError) {
+        console.error('Error al obtener lecciones:', lessonsError);
+      }
+
+      // 4. Obtener conteo de clases del profesor
+      const { count: classesCount, error: classesError } = await supabase
+        .from('Class')
+        .select('*', { count: 'exact', head: true })
+        .eq('supervisorId', teacherId);
+
+      if (classesError) {
+        console.error('Error al obtener clases:', classesError);
+      }
+
+      // Combinar toda la información
+      return {
+        ...teacherData,
+        counts: {
+          subjects: subjectsCount,
+          lessons: lessonsCount || 0,
+          classes: classesCount || 0,
+          attendance: 90 // Valor fijo para demostración, se debe implementar lógica real
+        }
+      };
+    },
+    {
+      staleTime: 1000 * 60 * 5, // 5 minutos
+      refetchOnWindowFocus: false,
+      enabled: !!teacherId
+    }
+  );
+}
