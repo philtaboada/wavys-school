@@ -4,6 +4,93 @@ import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Student, StudentListParams, StudentListResult, CreateStudentParams, UpdateStudentParams } from '@/utils/types';
 
+export type StudentDetails = {
+  id: string;
+  username: string;
+  name: string;
+  surname: string;
+  email?: string | null;
+  phone?: string | null;
+  address: string;
+  img?: string | null;
+  bloodType: string;
+  sex: string;
+  createdAt: Date;
+  birthday: Date;
+  parentId: string;
+  classId: number;
+  gradeId: number;
+  class: {
+    id: number;
+    name: string;
+    capacity: number;
+    supervisorId: string | null;
+    gradeId: number;
+    _count: {
+      lessons: number;
+    }
+  }
+};
+
+/**
+ * Hook para obtener los detalles de un estudiante específico
+ */
+export function useStudentDetails(studentId: string) {
+  return useSupabaseQuery<StudentDetails>(
+    ['student', 'details', studentId],
+    async (supabase) => {
+      // 1. Obtener información básica del estudiante
+      const { data: studentData, error: studentError } = await supabase
+        .from('Student')
+        .select('*')
+        .eq('id', studentId)
+        .single();
+
+      if (studentError || !studentData) {
+        throw new Error(`Error al obtener datos del estudiante: ${studentError?.message || 'No se encontraron datos'}`);
+      }
+
+      // 2. Obtener información de la clase
+      const { data: classData, error: classError } = await supabase
+        .from('Class')
+        .select('*')
+        .eq('id', studentData.classId)
+        .single();
+
+      if (classError || !classData) {
+        throw new Error(`Error al obtener datos de la clase: ${classError?.message || 'No se encontró la clase'}`);
+      }
+
+      // 3. Obtener conteo de lecciones para la clase
+      const { count: lessonsCount, error: lessonsError } = await supabase
+        .from('Lesson')
+        .select('*', { count: 'exact', head: true })
+        .eq('classId', classData.id);
+
+      if (lessonsError) {
+        throw new Error(`Error al obtener lecciones: ${lessonsError.message}`);
+      }
+
+      // Combinar toda la información
+      const student: StudentDetails = {
+        ...studentData,
+        class: {
+          ...classData,
+          _count: {
+            lessons: lessonsCount || 0
+          }
+        }
+      };
+
+      return student;
+    },
+    {
+      staleTime: 1000 * 60 * 5, // 5 minutos
+      refetchOnWindowFocus: false
+    }
+  );
+}
+
 /**
  * Hook para obtener la lista de estudiantes con filtrado y paginación
  */

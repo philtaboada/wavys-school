@@ -12,7 +12,7 @@ import StudentFormTQ from "@/components/forms/StudentFormTQ";
 import AssignmentFormTQ from "@/components/forms/AssignmentFormTQ";
 import { createClient } from "@/utils/supabase/client";
 import { useDeleteAttendance } from "@/utils/queries/attendanceQueries";
-import { useDeleteTeacher } from "@/utils/queries/teacherQueries";
+import { useDeleteTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
 import { useDeleteStudent } from "@/utils/queries/studentQueries";
 import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
 import { toast } from "react-toastify";
@@ -49,7 +49,7 @@ interface FormContainerTQProps {
   table: string; // "attendance" | "teacher" | "student" | "assignment" | "grades" | "exams" etc.
   type: "create" | "update" | "delete";
   id?: number;
-  data?: Attendance | Teacher | Student | Assignment | Exam | undefined;
+  data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | undefined;
 }
 
 export default function FormContainerTQ({

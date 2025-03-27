@@ -2,16 +2,53 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Teacher, TeacherListParams, TeacherListResult, CreateTeacherParams, UpdateTeacherParams } from '@/utils/types';
+
+export type TeacherDetails = {
+  id: string;
+  name: string;
+  surname: string;
+  email?: string | null;
+  phone?: string | null;
+  address: string;
+  img?: string | null;
+  bloodType: string;
+  sex: string;
+  createdAt: Date;
+  birthday: Date;
+  description?: string | null;
+  counts: {
+    subjects: number;
+    lessons: number;
+    classes: number;
+    attendance: number;
+  };
+};
+
+// Tipo para los parámetros de creación de profesor
+export interface CreateTeacherParams {
+  username: string;
+  name: string;
+  surname: string;
+  email?: string;
+  password?: string;
+  phone?: string;
+  address: string;
+  bloodType: string;
+  sex: string;
+  birthday: string;
+  img?: string;
+  imgPath?: string;
+  subjects?: number[];
+}
 
 /**
  * Hook para obtener la lista de profesores con filtrado y paginación
  */
-export function useTeacherList(params: TeacherListParams) {
-  const { page, search, subjectId } = params;
+export function useTeacherList(params: { page: number; search?: string; userRole?: string; userId?: string }) {
+  const { page, search, userRole, userId } = params;
   
-  return useSupabaseQuery<TeacherListResult>(
-    ['teacher', 'list', page, search, subjectId],
+  return useSupabaseQuery<{ data: any[]; count: number }>(
+    ['teacher', 'list', page, search, userRole, userId],
     async (supabase) => {
       // Construir la consulta base
       let query = supabase
@@ -20,21 +57,65 @@ export function useTeacherList(params: TeacherListParams) {
 
       // Aplicar filtros de búsqueda
       if (search) {
-        query = query.or(`name.ilike.%${search}%,surname.ilike.%${search}%,username.ilike.%${search}%,email.ilike.%${search}%`);
+        query = query.or(`name.ilike.%${search}%,surname.ilike.%${search}%,email.ilike.%${search}%`);
       }
 
-      // Filtrar por asignatura
-      if (subjectId) {
-        const { data: subjectTeachers } = await supabase
-          .from('subject_teacher')
-          .select('teacherId')
-          .eq('subjectId', subjectId);
-        
-        if (subjectTeachers && subjectTeachers.length > 0) {
-          const teacherIds = subjectTeachers.map(t => t.teacherId);
-          query = query.in('id', teacherIds);
-        } else {
-          return { data: [], count: 0 };
+      // Filtros específicos según el rol del usuario
+      if (userRole && userRole !== 'admin' && userId) {
+        if (userRole === 'teacher') {
+          // Si el usuario es profesor, solo puede ver su propio perfil
+          query = query.eq('id', userId);
+        } 
+        else if (userRole === 'student') {
+          // Obtener los profesores de las clases a las que pertenece el estudiante
+          const { data: studentData } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('id', userId)
+            .single();
+          
+          if (studentData && studentData.classId) {
+            // Obtener lecciones de la clase del estudiante
+            const { data: lessonsData } = await supabase
+              .from('Lesson')
+              .select('teacherId')
+              .eq('classId', studentData.classId);
+            
+            if (lessonsData && lessonsData.length > 0) {
+              const teacherIds = lessonsData.map(lesson => lesson.teacherId);
+              query = query.in('id', teacherIds);
+            } else {
+              return { data: [], count: 0 };
+            }
+          } else {
+            return { data: [], count: 0 };
+          }
+        } 
+        else if (userRole === 'parent') {
+          // Obtener los estudiantes del padre
+          const { data: parentStudents } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('parentId', userId);
+          
+          if (parentStudents && parentStudents.length > 0) {
+            const classIds = parentStudents.map(student => student.classId);
+            
+            // Obtener lecciones de las clases de los estudiantes
+            const { data: lessonsData } = await supabase
+              .from('Lesson')
+              .select('teacherId')
+              .in('classId', classIds);
+            
+            if (lessonsData && lessonsData.length > 0) {
+              const teacherIds = lessonsData.map(lesson => lesson.teacherId);
+              query = query.in('id', teacherIds);
+            } else {
+              return { data: [], count: 0 };
+            }
+          } else {
+            return { data: [], count: 0 };
+          }
         }
       }
 
@@ -49,37 +130,8 @@ export function useTeacherList(params: TeacherListParams) {
         throw new Error(`Error al obtener datos de profesores: ${error.message}`);
       }
 
-      // Obtener asignaturas relacionadas
-      const result: Teacher[] = [];
-      
-      for (const teacher of data as Teacher[]) {
-        const { data: subjectRelations } = await supabase
-          .from('subject_teacher')
-          .select('subjectId')
-          .eq('teacherId', teacher.id);
-        
-        if (subjectRelations && subjectRelations.length > 0) {
-          const subjectIds = subjectRelations.map(rel => rel.subjectId);
-          
-          const { data: subjects } = await supabase
-            .from('Subject')
-            .select('id, name')
-            .in('id', subjectIds);
-          
-          result.push({
-            ...teacher,
-            subjects: subjects || []
-          });
-        } else {
-          result.push({
-            ...teacher,
-            subjects: []
-          });
-        }
-      }
-
       return { 
-        data: result, 
+        data: data || [], 
         count: count || 0 
       };
     },
@@ -91,216 +143,21 @@ export function useTeacherList(params: TeacherListParams) {
 }
 
 /**
- * Función para crear un nuevo profesor
+ * Hook para obtener los detalles de un profesor específico
  */
-export function useCreateTeacher() {
-  return useSupabaseMutation<CreateTeacherParams, { id: string }>(
-    async (supabase, params) => {
-      // Crear usuario en Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: params.email || `${params.username}@example.com`,
-        password: params.password || "",
-        options: {
-          data: {
-            role: "teacher",
-            name: params.name,
-            surname: params.surname
-          }
-        }
-      });
-      
-      if (authError) {
-        throw new Error(`Error al crear usuario: ${authError.message}`);
-      }
-      
-      if (!authData.user?.id) {
-        throw new Error('No se pudo obtener el ID del usuario creado');
-      }
-      
-      // Crear registro en la tabla de teachers
-      const { error: teacherError } = await supabase
-        .from('Teacher')
-        .insert({
-          id: authData.user.id,
-          username: params.username,
-          name: params.name,
-          surname: params.surname,
-          email: params.email || null,
-          phone: params.phone || null,
-          address: params.address,
-          img: params.img || null,
-          imgPath: params.imgPath || null,
-          bloodType: params.bloodType,
-          sex: params.sex,
-          birthday: params.birthday
-        });
-      
-      if (teacherError) {
-        throw new Error(`Error al crear profesor: ${teacherError.message}`);
-      }
-      
-      // Relacionar con asignaturas
-      if (params.subjects && params.subjects.length > 0) {
-        const subjectConnections = params.subjects.map(subjectId => ({
-          teacherId: authData.user?.id,
-          subjectId
-        }));
-        
-        const { error: relationError } = await supabase
-          .from('subject_teacher')
-          .insert(subjectConnections);
-        
-        if (relationError) {
-          throw new Error(`Error al relacionar asignaturas: ${relationError.message}`);
-        }
-      }
-      
-      return { id: authData.user.id };
-    },
-    {
-      invalidateQueries: [['teacher', 'list']],
-      onSuccess: () => {
-        console.log('Profesor creado exitosamente');
-      }
-    }
-  );
-}
-
-/**
- * Función para actualizar un profesor existente
- */
-export function useUpdateTeacher() {
-  return useSupabaseMutation<UpdateTeacherParams, { id: string }>(
-    async (supabase, params) => {
-      const { id, password, subjects, ...teacherData } = params;
-      
-      // Actualizar usuario en Auth si hay nueva contraseña
-      if (password) {
-        const { error: authError } = await supabase.auth.updateUser({
-          password
-        });
-        
-        if (authError) {
-          throw new Error(`Error al actualizar contraseña: ${authError.message}`);
-        }
-      }
-      
-      // Actualizar registro en la tabla de teachers
-      const { error: teacherError } = await supabase
-        .from('Teacher')
-        .update(teacherData)
-        .eq('id', id);
-      
-      if (teacherError) {
-        throw new Error(`Error al actualizar profesor: ${teacherError.message}`);
-      }
-      
-      // Actualizar relaciones con asignaturas
-      if (subjects !== undefined) {
-        // Eliminar relaciones existentes
-        const { error: deleteError } = await supabase
-          .from('subject_teacher')
-          .delete()
-          .eq('teacherId', id);
-          
-        if (deleteError) {
-          throw new Error(`Error al eliminar relaciones: ${deleteError.message}`);
-        }
-        
-        // Crear nuevas relaciones
-        if (subjects.length > 0) {
-          const subjectConnections = subjects.map(subjectId => ({
-            teacherId: id,
-            subjectId
-          }));
-          
-          const { error: relationError } = await supabase
-            .from('subject_teacher')
-            .insert(subjectConnections);
-          
-          if (relationError) {
-            throw new Error(`Error al crear nuevas relaciones: ${relationError.message}`);
-          }
-        }
-      }
-      
-      return { id };
-    },
-    {
-      invalidateQueries: [['teacher', 'list']],
-      onSuccess: () => {
-        console.log('Profesor actualizado exitosamente');
-      }
-    }
-  );
-}
-
-/**
- * Función para eliminar un profesor
- */
-export function useDeleteTeacher() {
-  return useSupabaseMutation<{ id: string }, void>(
-    async (supabase, { id }) => {
-      // Eliminar relaciones primero
-      const { error: relationError } = await supabase
-        .from('subject_teacher')
-        .delete()
-        .eq('teacherId', id);
-        
-      if (relationError) {
-        throw new Error(`Error al eliminar relaciones: ${relationError.message}`);
-      }
-      
-      // Eliminar el registro de teacher
-      const { error: teacherError } = await supabase
-        .from('Teacher')
-        .delete()
-        .eq('id', id);
-      
-      if (teacherError) {
-        throw new Error(`Error al eliminar profesor: ${teacherError.message}`);
-      }
-      
-      // Eliminar el usuario de Auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(id);
-      
-      if (authError) {
-        throw new Error(`Error al eliminar usuario: ${authError.message}`);
-      }
-    },
-    {
-      invalidateQueries: [['teacher', 'list']],
-      onSuccess: () => {
-        console.log('Profesor eliminado exitosamente');
-      }
-    }
-  );
-}
-
-/**
- * Hook para obtener detalles de un profesor específico por ID
- */
-export function useTeacherDetail(teacherId: string) {
-  return useSupabaseQuery<Teacher & { counts: { subjects: number; lessons: number; classes: number; attendance: number } }>(
-    ['teacher', 'detail', teacherId],
+export function useTeacherDetails(teacherId: string) {
+  return useSupabaseQuery<TeacherDetails>(
+    ['teacher', 'details', teacherId],
     async (supabase) => {
-      if (!teacherId) {
-        throw new Error('Se requiere el ID del profesor');
-      }
-      
       // 1. Obtener información básica del profesor
       const { data: teacherData, error: teacherError } = await supabase
         .from('Teacher')
         .select('*')
         .eq('id', teacherId)
         .single();
-      
-      if (teacherError) {
-        throw new Error(`Error al obtener datos del profesor: ${teacherError.message}`);
-      }
-      
-      if (!teacherData) {
-        throw new Error('No se encontró el profesor');
+
+      if (teacherError || !teacherData) {
+        throw new Error(`Error al obtener datos del profesor: ${teacherError?.message || 'No se encontraron datos'}`);
       }
 
       // 2. Obtener conteo de asignaturas del profesor
@@ -310,7 +167,7 @@ export function useTeacherDetail(teacherId: string) {
         .eq('teacherId', teacherId);
 
       if (subjectsError) {
-        console.error('Error al obtener asignaturas:', subjectsError);
+        throw new Error(`Error al obtener asignaturas: ${subjectsError.message}`);
       }
 
       const subjectsCount = subjectsData?.length || 0;
@@ -322,7 +179,7 @@ export function useTeacherDetail(teacherId: string) {
         .eq('teacherId', teacherId);
 
       if (lessonsError) {
-        console.error('Error al obtener lecciones:', lessonsError);
+        throw new Error(`Error al obtener lecciones: ${lessonsError.message}`);
       }
 
       // 4. Obtener conteo de clases del profesor
@@ -332,24 +189,175 @@ export function useTeacherDetail(teacherId: string) {
         .eq('supervisorId', teacherId);
 
       if (classesError) {
-        console.error('Error al obtener clases:', classesError);
+        throw new Error(`Error al obtener clases: ${classesError.message}`);
       }
 
       // Combinar toda la información
-      return {
+      const teacher: TeacherDetails = {
         ...teacherData,
         counts: {
           subjects: subjectsCount,
           lessons: lessonsCount || 0,
           classes: classesCount || 0,
-          attendance: 90 // Valor fijo para demostración, se debe implementar lógica real
+          attendance: 90 // Valor fijo por ahora, podría obtenerse de la base de datos
         }
       };
+
+      return teacher;
     },
     {
       staleTime: 1000 * 60 * 5, // 5 minutos
-      refetchOnWindowFocus: false,
-      enabled: !!teacherId
+      refetchOnWindowFocus: false
+    }
+  );
+}
+
+/**
+ * Función para eliminar un profesor
+ */
+export function useDeleteTeacher() {
+  return useSupabaseMutation<{ id: string }, void>(
+    async (supabase, { id }) => {
+      // Verificar si el profesor tiene clases asignadas como supervisor
+      const { count: classesCount, error: classesError } = await supabase
+        .from('Class')
+        .select('id', { count: 'exact', head: true })
+        .eq('supervisorId', id);
+      
+      if (classesError) {
+        throw new Error(`Error al verificar clases supervisadas: ${classesError.message}`);
+      }
+      
+      if (classesCount && classesCount > 0) {
+        throw new Error(`No se puede eliminar al profesor porque supervisa ${classesCount} clases`);
+      }
+      
+      // Verificar si el profesor tiene lecciones asignadas
+      const { count: lessonsCount, error: lessonsError } = await supabase
+        .from('Lesson')
+        .select('id', { count: 'exact', head: true })
+        .eq('teacherId', id);
+      
+      if (lessonsError) {
+        throw new Error(`Error al verificar lecciones: ${lessonsError.message}`);
+      }
+      
+      if (lessonsCount && lessonsCount > 0) {
+        throw new Error(`No se puede eliminar al profesor porque tiene ${lessonsCount} lecciones asignadas`);
+      }
+      
+      // Eliminar asignaciones de materias primero
+      const { error: subjectTeacherError } = await supabase
+        .from('subject_teacher')
+        .delete()
+        .eq('teacherId', id);
+      
+      if (subjectTeacherError) {
+        throw new Error(`Error al eliminar asignaciones de materias: ${subjectTeacherError.message}`);
+      }
+      
+      // Finalmente eliminar al profesor
+      const { error } = await supabase
+        .from('Teacher')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw new Error(`Error al eliminar profesor: ${error.message}`);
+      }
+    },
+    {
+      invalidateQueries: [['teacher', 'details'], ['teacher', 'list']],
+      onSuccess: () => {
+        console.log('Profesor eliminado exitosamente');
+      }
+    }
+  );
+}
+
+/**
+ * Función para actualizar un profesor
+ */
+export function useUpdateTeacher() {
+  return useSupabaseMutation<TeacherDetails, { id: string }>(
+    async (supabase, params) => {
+      const { id, counts, ...rest } = params;
+      
+      const { data, error } = await supabase
+        .from('Teacher')
+        .update(rest)
+        .eq('id', id)
+        .select('id')
+        .single();
+      
+      if (error) {
+        throw new Error(`Error al actualizar profesor: ${error.message}`);
+      }
+      
+      return data as { id: string };
+    },
+    {
+      invalidateQueries: [['teacher', 'details'], ['teacher', 'list']],
+      onSuccess: () => {
+        console.log('Profesor actualizado exitosamente');
+      }
+    }
+  );
+}
+
+/**
+ * Función para crear un nuevo profesor
+ */
+export function useCreateTeacher() {
+  return useSupabaseMutation<CreateTeacherParams, { id: string }>(
+    async (supabase, params) => {
+      // Primero creamos el profesor
+      const { data, error } = await supabase
+        .from('Teacher')
+        .insert({
+          username: params.username,
+          name: params.name,
+          surname: params.surname,
+          email: params.email,
+          phone: params.phone,
+          address: params.address,
+          bloodType: params.bloodType,
+          sex: params.sex,
+          birthday: params.birthday,
+          img: params.img,
+          imgPath: params.imgPath
+        })
+        .select('id')
+        .single();
+      
+      if (error) {
+        throw new Error(`Error al crear profesor: ${error.message}`);
+      }
+
+      // Si se proporcionan asignaturas, las asignamos al profesor
+      if (params.subjects && params.subjects.length > 0) {
+        const teacherId = data.id;
+        const subjectTeacherData = params.subjects.map((subjectId: number) => ({
+          teacherId,
+          subjectId
+        }));
+        
+        const { error: subjectTeacherError } = await supabase
+          .from('subject_teacher')
+          .insert(subjectTeacherData);
+        
+        if (subjectTeacherError) {
+          throw new Error(`Error al asignar materias: ${subjectTeacherError.message}`);
+        }
+      }
+      
+      return data as { id: string };
+    },
+    {
+      invalidateQueries: [['teacher', 'list']],
+      onSuccess: () => {
+        console.log('Profesor creado exitosamente');
+      }
     }
   );
 }

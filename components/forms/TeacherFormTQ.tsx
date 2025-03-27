@@ -8,7 +8,7 @@ import Image from "next/image";
 import { teacherSchema, TeacherSchema } from "@/lib/formValidationSchemas";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
-import { useCreateTeacher, useUpdateTeacher } from "@/utils/queries/teacherQueries";
+import { useCreateTeacher, useUpdateTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
 import { Teacher } from "@/utils/types";
 
 // Tipo para la imagen con información adicional de la URL firmada
@@ -20,7 +20,7 @@ type ImageInfo = {
 
 interface TeacherFormTQProps {
   type: "create" | "update";
-  data?: Teacher;
+  data?: Teacher | TeacherDetails;
   setOpen: (open: boolean) => void;
   relatedData?: {
     subjects?: { id: number; name: string }[];
