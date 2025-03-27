@@ -10,6 +10,7 @@ import { useAssignmentList } from '@/utils/queries/assignmentQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Assignment } from '@/utils/types';
 import Loading from '../loading';
+import { UserInfo } from '@/components/user-info';
 
 interface AssignmentsClientTQProps {
   initialRole?: string;
@@ -189,6 +190,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
       {/* Estado de depuración en entorno de desarrollo */}
       {process.env.NODE_ENV !== 'production' && (
         <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
+          <UserInfo /> 
           <details>
             <summary className="cursor-pointer font-semibold">Información de depuración</summary>
             <p>Usuario: {initialUserId} (Rol: {initialRole})</p>
