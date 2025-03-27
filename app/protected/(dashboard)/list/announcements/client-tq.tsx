@@ -10,6 +10,7 @@ import { useAnnouncementList } from '@/utils/queries/announcementQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Announcement } from '@/utils/types/announcement';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface AnnouncementClientTQProps {
   initialRole?: string;
@@ -23,6 +24,13 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, profile, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
   const classId = searchParams.get('classId') ? parseInt(searchParams.get('classId') as string, 10) : undefined;
@@ -32,8 +40,8 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
     page: pageNum,
     search: searchValue || undefined,
     classId,
-    userRole: initialRole,
-    userId: initialUserId
+    userRole, // Usar el rol de la caché o el inicial
+    userId    // Usar el ID de la caché o el inicial
   });
 
   // Definir las columnas de la tabla
@@ -51,7 +59,7 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
       accessor: "date",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin" // Usar el rol de la caché
       ? [
         {
           header: "Acciones",
@@ -75,7 +83,7 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {initialRole === "admin" && (
+            {userRole === "admin" && ( // Usar el rol de la caché
               <>
                 <FormContainerTQ table="announcement" type="update" data={item as any} />
                 <FormContainerTQ table="announcement" type="delete" id={Number(item.id)} />
@@ -133,7 +141,7 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && ( // Usar el rol de la caché
               <FormContainerTQ table="announcement" type="create" />
             )}
           </div>

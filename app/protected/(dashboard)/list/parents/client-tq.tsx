@@ -7,6 +7,7 @@ import TableSearch from "@/components/TableSearch";
 import Pagination from "@/components/Pagination";
 import FormContainerTQ from "@/components/FormContainerTQ";
 import { useParentList } from '@/utils/queries/parentQueries';
+import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye } from 'lucide-react';
 import { Parent } from '@/utils/types';
 import Link from 'next/link';
@@ -23,6 +24,11 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
 
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+
+  // Obtener datos del usuario desde el caché
+  const { user } = useUser();
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
 
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
@@ -63,7 +69,7 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
       accessor: "address",
       className: "hidden lg:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin"
       ? [
         {
           header: "Acciones",
@@ -101,7 +107,7 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
                 <Eye className="w-4 h-4" />
               </button>
             </Link>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <>
                 <FormContainerTQ table="parent" type="update" data={item} />
                 <FormContainerTQ table="parent" type="delete" id={Number(item.id)} />
@@ -153,13 +159,13 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
             onSearch={handleSearch}
           />
           <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
               <ListFilterPlus className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="parent" type="create" />
             )}
           </div>
@@ -173,7 +179,13 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
-          <p>No se encontraron padres.</p>
+          {userRole === "student" ? (
+            <p>No tienes padres registrados en el sistema.</p>
+          ) : userRole === "teacher" ? (
+            <p>No hay padres asociados a tus estudiantes.</p>
+          ) : (
+            <p>No se encontraron padres.</p>
+          )}
         </div>
       ) : (
         <Table columns={columns} renderRow={renderRow} data={data.data} />
@@ -181,6 +193,26 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
 
       {/* PAGINATION */}
       <Pagination page={pageNum} count={data?.count ?? 0} />
+
+      {/* Panel de depuración */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 border-t pt-2 text-xs">
+          <details>
+            <summary className="cursor-pointer text-gray-500">Debug info</summary>
+            <div className="mt-2 bg-gray-100 p-2 rounded">
+              <p><strong>User Role:</strong> {userRole || 'No disponible'}</p>
+              <p><strong>User ID:</strong> {userId || 'No disponible'}</p>
+              <p><strong>Initial Role:</strong> {initialRole || 'No disponible'}</p>
+              <p><strong>Initial User ID:</strong> {initialUserId || 'No disponible'}</p>
+              <p><strong>Page:</strong> {pageNum}</p>
+              <p><strong>Search:</strong> {searchValue || 'No disponible'}</p>
+              <p><strong>Student ID:</strong> {studentId || 'No disponible'}</p>
+              <p><strong>Class ID:</strong> {classId || 'No disponible'}</p>
+              <p><strong>Parents count:</strong> {data?.count || 0}</p>
+            </div>
+          </details>
+        </div>
+      )}
     </div>
   );
 } 

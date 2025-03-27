@@ -7,6 +7,7 @@ import TableSearch from "@/components/TableSearch";
 import Pagination from "@/components/Pagination";
 import FormContainerTQ from "@/components/FormContainerTQ";
 import { useStudentList } from '@/utils/queries/studentQueries';
+import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye, CircleUser } from 'lucide-react';
 import { Student } from '@/utils/types';
 import Link from 'next/link';
@@ -23,6 +24,11 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
 
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+
+  // Obtener datos del usuario desde el caché
+  const { user } = useUser();
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
 
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
@@ -61,7 +67,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
       accessor: "address",
       className: "hidden lg:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin"
       ? [
         {
           header: "Acciones",
@@ -96,7 +102,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
                 <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#990000" d="M12 9a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5a5 5 0 0 1 5-5a5 5 0 0 1 5 5a5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
               </button>
             </Link>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <>
                 <FormContainerTQ table="student" type="update" data={item} />
                 <FormContainerTQ 
@@ -158,7 +164,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="student" type="create" />
             )}
           </div>
@@ -172,7 +178,13 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
-          <p>No se encontraron estudiantes.</p>
+          {userRole === "parent" ? (
+            <p>No hay estudiantes asignados a tu cuenta.</p>
+          ) : userRole === "teacher" ? (
+            <p>No tienes estudiantes asignados.</p>
+          ) : (
+            <p>No se encontraron estudiantes.</p>
+          )}
         </div>
       ) : (
         <Table columns={columns} renderRow={renderRow} data={data.data} />
@@ -180,6 +192,25 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
 
       {/* PAGINATION */}
       <Pagination page={pageNum} count={data?.count ?? 0} />
+
+      {/* Panel de depuración */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 border-t pt-2 text-xs">
+          <details>
+            <summary className="cursor-pointer text-gray-500">Debug info</summary>
+            <div className="mt-2 bg-gray-100 p-2 rounded">
+              <p><strong>User Role:</strong> {userRole || 'No disponible'}</p>
+              <p><strong>User ID:</strong> {userId || 'No disponible'}</p>
+              <p><strong>Initial Role:</strong> {initialRole || 'No disponible'}</p>
+              <p><strong>Initial User ID:</strong> {initialUserId || 'No disponible'}</p>
+              <p><strong>Page:</strong> {pageNum}</p>
+              <p><strong>Search:</strong> {searchValue || 'No disponible'}</p>
+              <p><strong>Class ID:</strong> {classId || 'No disponible'}</p>
+              <p><strong>Students count:</strong> {data?.count || 0}</p>
+            </div>
+          </details>
+        </div>
+      )}
     </div>
   );
 } 

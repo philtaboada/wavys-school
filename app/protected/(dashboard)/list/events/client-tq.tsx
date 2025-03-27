@@ -10,6 +10,7 @@ import { useEventList } from '@/utils/queries/eventQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Event } from '@/utils/types/event';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface EventClientTQProps {
   initialRole?: string;
@@ -23,6 +24,13 @@ export default function EventClientTQ({ initialRole, initialUserId }: EventClien
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
   const classId = searchParams.get('classId') || undefined;
@@ -32,8 +40,8 @@ export default function EventClientTQ({ initialRole, initialUserId }: EventClien
     page: pageNum,
     search: searchValue || undefined,
     classId,
-    userRole: initialRole,
-    userId: initialUserId
+    userRole: userRole,
+    userId: userId
   });
 
   // Definir las columnas de la tabla
@@ -61,7 +69,7 @@ export default function EventClientTQ({ initialRole, initialUserId }: EventClien
       accessor: "endTime",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin"
       ? [
         {
           header: "Acciones",
@@ -99,7 +107,7 @@ export default function EventClientTQ({ initialRole, initialUserId }: EventClien
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <>
                 <FormContainerTQ table="event" type="update" data={item as any} />
                 <FormContainerTQ table="event" type="delete" id={typeof item.id === 'string' ? Number(item.id) : item.id} />
@@ -157,12 +165,24 @@ export default function EventClientTQ({ initialRole, initialUserId }: EventClien
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="event" type="create" />
             )}
           </div>
         </div>
       </div>
+
+      {/* Estado de depuración en entorno de desarrollo */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
+          <details>
+            <summary className="cursor-pointer font-semibold">Información de depuración</summary>
+            <p>Usuario: {userId} (Rol: {userRole})</p>
+            <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
+            <p>Registros: {data?.count ?? 0}</p>
+          </details>
+        </div>
+      )}
 
       {/* LIST */}
       {isLoading ? (

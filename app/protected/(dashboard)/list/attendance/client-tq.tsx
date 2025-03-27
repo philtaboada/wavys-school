@@ -11,6 +11,7 @@ import { useAttendanceList } from '@/utils/queries/attendanceQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Attendance } from '@/utils/types';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface AttendanceClientTQProps {
   initialRole?: string;
@@ -24,6 +25,13 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
 
@@ -31,8 +39,8 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
   const { data, isLoading, error } = useAttendanceList({
     page: pageNum,
     search: searchValue || undefined,
-    role: initialRole,
-    userId: initialUserId,
+    role: userRole,
+    userId: userId,
   });
 
   // Definir las columnas de la tabla
@@ -55,7 +63,7 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
       accessor: "status",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin" || initialRole === "teacher"
+    ...(userRole === "admin" || userRole === "teacher"
       ? [
         {
           header: "Acciones",
@@ -88,7 +96,7 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {(initialRole === "admin" || initialRole === "teacher") && (
+            {(userRole === "admin" || userRole === "teacher") && (
               <>
                 <FormContainerTQ table="attendance" type="update" data={item} />
                 <FormContainerTQ table="attendance" type="delete" id={item.id} />
@@ -127,7 +135,7 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
   }
 
   // Mostrar mensajes específicos según el rol y resultados
-  if (initialRole === "teacher" && data?.data.length === 0 && !isLoading) {
+  if (userRole === "teacher" && data?.data.length === 0 && !isLoading) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <div className="flex items-center justify-between">
@@ -148,7 +156,7 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
     );
   }
 
-  if (initialRole === "parent" && data?.data.length === 0 && !isLoading) {
+  if (userRole === "parent" && data?.data.length === 0 && !isLoading) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <h1 className="text-lg font-semibold mb-4">Registro de Asistencia</h1>
@@ -177,7 +185,7 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="attendance" type="create" />
             )}
           </div>

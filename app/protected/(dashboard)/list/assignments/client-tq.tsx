@@ -11,6 +11,7 @@ import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Assignment } from '@/utils/types';
 import Loading from '../loading';
 import { UserInfo } from '@/components/user-info';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface AssignmentsClientTQProps {
   initialRole?: string;
@@ -24,6 +25,13 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
   const classIdFilter = searchParams.get('classId') ? parseInt(searchParams.get('classId') as string, 10) : undefined;
@@ -35,8 +43,8 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
     search: searchValue || undefined,
     classId: classIdFilter,
     teacherId: teacherIdFilter,
-    role: initialRole,
-    userId: initialUserId,
+    role: userRole,
+    userId: userId,
   });
 
   // Definir las columnas de la tabla
@@ -63,7 +71,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
       accessor: "dueDate",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin" || initialRole === "teacher"
+    ...(userRole === "admin" || userRole === "teacher"
       ? [
           {
             header: "Acciones",
@@ -93,7 +101,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {(initialRole === "admin" || (initialRole === "teacher" && item.lesson?.teacher?.id === initialUserId)) && (
+            {(userRole === "admin" || (userRole === "teacher" && item.lesson?.teacher?.id === userId)) && (
               <>
                 <FormContainerTQ table="assignment" type="update" data={item} />
                 <FormContainerTQ table="assignment" type="delete" id={item.id} />
@@ -133,7 +141,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
   }
 
   // Mostrar mensajes específicos según el rol y resultados
-  if (initialRole === "teacher" && data?.data.length === 0 && !isLoading) {
+  if (userRole === "teacher" && data?.data.length === 0 && !isLoading) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <h1 className="text-lg font-semibold mb-4">Tareas</h1>
@@ -142,7 +150,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
     );
   }
 
-  if (initialRole === "student" && data?.data.length === 0 && !isLoading) {
+  if (userRole === "student" && data?.data.length === 0 && !isLoading) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <h1 className="text-lg font-semibold mb-4">Tareas</h1>
@@ -151,7 +159,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
     );
   }
 
-  if (initialRole === "parent" && data?.data.length === 0 && !isLoading) {
+  if (userRole === "parent" && data?.data.length === 0 && !isLoading) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <h1 className="text-lg font-semibold mb-4">Tareas</h1>
@@ -180,7 +188,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {(initialRole === "admin" || initialRole === "teacher") && (
+            {(userRole === "admin" || userRole === "teacher") && (
               <FormContainerTQ table="assignment" type="create" />
             )}
           </div>
@@ -193,7 +201,7 @@ export default function AssignmentsClientTQ({ initialRole, initialUserId }: Assi
           <UserInfo /> 
           <details>
             <summary className="cursor-pointer font-semibold">Información de depuración</summary>
-            <p>Usuario: {initialUserId} (Rol: {initialRole})</p>
+            <p>Usuario: {userId} (Rol: {userRole})</p>
             <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
             <p>Registros: {data?.count ?? 0}</p>
             {error && (

@@ -7,6 +7,7 @@ import TableSearch from "@/components/TableSearch";
 import Pagination from "@/components/Pagination";
 import FormContainerTQ from "@/components/FormContainerTQ";
 import { useResultList } from '@/utils/queries/resultQueries';
+import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { ResultDisplay } from '@/utils/queries/resultQueries';
 import Loading from '../loading';
@@ -23,6 +24,11 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde el caché
+  const { user } = useUser();
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
   const studentId = searchParams.get('studentId') || undefined;
@@ -36,8 +42,8 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
     studentId,
     examId,
     assignmentId,
-    userRole: initialRole,
-    userId: initialUserId
+    userRole,
+    userId
   });
 
   // Definir las columnas de la tabla
@@ -70,7 +76,7 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
       accessor: "date",
       className: "hidden md:table-cell",
     },
-    ...((initialRole === "admin" || initialRole === "teacher")
+    ...((userRole === "admin" || userRole === "teacher")
       ? [
         {
           header: "Acciones",
@@ -97,7 +103,7 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
         <td className="hidden md:table-cell">
           {item.startTime ? new Date(item.startTime).toLocaleDateString() : 'N/A'}
         </td>
-        {(initialRole === "admin" || initialRole === "teacher") && (
+        {(userRole === "admin" || userRole === "teacher") && (
           <td>
             <div className="flex items-center gap-2">
               <FormContainerTQ table="result" type="update" data={item as any} />
@@ -135,25 +141,6 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
     );
   }
 
-  // Mostrar mensaje específico para roles no-admin sin resultados
-  if (!isLoading && (!data?.data || data.data.length === 0)) {
-    let message = "No hay resultados disponibles.";
-    if (initialRole === "student") {
-      message = "No tienes resultados registrados.";
-    } else if (initialRole === "parent") {
-      message = "Tus hijos no tienen resultados registrados.";
-    } else if (initialRole === "teacher") {
-      message = "No hay resultados para tus lecciones.";
-    }
-    
-    return (
-      <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
-        <h1 className="text-lg font-semibold mb-4">Resultados</h1>
-        <p>{message}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
@@ -168,30 +155,18 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
             onSearch={handleSearch}
           />
           <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
               <ListFilterPlus className="w-4 h-4" />
             </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {(initialRole === "admin" || initialRole === "teacher") && (
+            {userRole === "admin" && (
               <FormContainerTQ table="result" type="create" />
             )}
           </div>
         </div>
       </div>
-
-      {/* Estado de depuración */}
-      {process.env.NODE_ENV !== 'production' && (
-        <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
-          <details>
-            <summary className="cursor-pointer font-semibold">Información de depuración</summary>
-            <p>Usuario: {initialUserId} (Rol: {initialRole})</p>
-            <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
-            <p>Registros: {data?.count ?? 0}</p>
-          </details>
-        </div>
-      )}
 
       {/* LIST */}
       {isLoading ? (
@@ -200,7 +175,13 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
-          <p>No se encontraron resultados.</p>
+          {userRole === "student" ? (
+            <p>No tienes resultados disponibles.</p>
+          ) : userRole === "teacher" ? (
+            <p>No hay resultados disponibles para tus estudiantes.</p>
+          ) : (
+            <p>No se encontraron resultados.</p>
+          )}
         </div>
       ) : (
         <Table columns={columns} renderRow={renderRow} data={data.data} />
@@ -208,6 +189,26 @@ export default function ResultClientTQ({ initialRole, initialUserId }: ResultCli
 
       {/* PAGINATION */}
       <Pagination page={pageNum} count={data?.count ?? 0} />
+
+      {/* Panel de depuración */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 border-t pt-2 text-xs">
+          <details>
+            <summary className="cursor-pointer text-gray-500">Debug info</summary>
+            <div className="mt-2 bg-gray-100 p-2 rounded">
+              <p><strong>User Role:</strong> {userRole || 'No disponible'}</p>
+              <p><strong>User ID:</strong> {userId || 'No disponible'}</p>
+              <p><strong>Initial Role:</strong> {initialRole || 'No disponible'}</p>
+              <p><strong>Initial User ID:</strong> {initialUserId || 'No disponible'}</p>
+              <p><strong>Page:</strong> {pageNum}</p>
+              <p><strong>Search:</strong> {searchValue || 'No disponible'}</p>
+              <p><strong>Student ID:</strong> {studentId || 'No disponible'}</p>
+              <p><strong>Exam ID:</strong> {examId || 'No disponible'}</p>
+              <p><strong>Results count:</strong> {data?.count || 0}</p>
+            </div>
+          </details>
+        </div>
+      )}
     </div>
   );
 } 

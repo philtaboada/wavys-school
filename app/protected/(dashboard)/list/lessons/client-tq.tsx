@@ -10,6 +10,7 @@ import { useLessonList } from '@/utils/queries/lessonQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Lesson } from '@/utils/types/lesson';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface LessonClientTQProps {
   initialRole?: string;
@@ -22,6 +23,13 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
 
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
 
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
@@ -36,8 +44,8 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
     classId,
     teacherId,
     subjectId,
-    userRole: initialRole,
-    userId: initialUserId
+    userRole: userRole,
+    userId: userId
   });
 
   // Definir las columnas de la tabla
@@ -55,7 +63,7 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
       accessor: "teacher",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin"
       ? [
         {
           header: "Acciones",
@@ -77,7 +85,7 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
         <td className="hidden md:table-cell">
           {item.Teacher ? `${item.Teacher.name} ${item.Teacher.surname}` : 'Sin profesor'}
         </td>
-        {initialRole === "admin" && (
+        {userRole === "admin" && (
           <td>
             <div className="flex items-center gap-2">
               <FormContainerTQ table="lesson" type="update" data={item as any} />
@@ -116,13 +124,13 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
   }
 
   // Mostrar mensaje específico para roles no-admin sin lecciones
-  if ((initialRole === "student" || initialRole === "parent" || initialRole === "teacher") && !isLoading && (!data?.data || data.data.length === 0)) {
+  if ((userRole === "student" || userRole === "parent" || userRole === "teacher") && !isLoading && (!data?.data || data.data.length === 0)) {
     let message = "No tienes lecciones disponibles.";
-    if (initialRole === "student") {
+    if (userRole === "student") {
       message = "No tienes lecciones asignadas a tu clase.";
-    } else if (initialRole === "parent") {
+    } else if (userRole === "parent") {
       message = "Tus hijos no tienen lecciones asignadas.";
-    } else if (initialRole === "teacher") {
+    } else if (userRole === "teacher") {
       message = "No tienes lecciones asignadas.";
     }
     
@@ -154,7 +162,7 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="lesson" type="create" />
             )}
           </div>
@@ -166,7 +174,7 @@ export default function LessonClientTQ({ initialRole, initialUserId }: LessonCli
         <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
           <details>
             <summary className="cursor-pointer font-semibold">Información de depuración</summary>
-            <p>Usuario: {initialUserId} (Rol: {initialRole})</p>
+            <p>Usuario: {userId} (Rol: {userRole})</p>
             <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
             <p>Registros: {data?.count ?? 0}</p>
           </details>

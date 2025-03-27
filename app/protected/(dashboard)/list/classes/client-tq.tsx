@@ -10,6 +10,7 @@ import { useClassList } from '@/utils/queries/classQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Class } from '@/utils/types/class';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface ClassClientTQProps {
   initialRole?: string;
@@ -23,6 +24,13 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
+
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
   const supervisorId = searchParams.get('supervisorId') || undefined;
@@ -31,8 +39,8 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
   const { data, isLoading, error } = useClassList({
     page: pageNum,
     search: searchValue || undefined,
-    userRole: initialRole,
-    userId: initialUserId
+    userRole: userRole,
+    userId: userId
   });
 
   // Definir las columnas de la tabla
@@ -56,7 +64,7 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
       accessor: "supervisor",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin"
+    ...(userRole === "admin"
       ? [
         {
           header: "Acciones",
@@ -83,7 +91,7 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <>
                 <FormContainerTQ table="class" type="update" data={item as any} />
                 <FormContainerTQ table="class" type="delete" id={Number(item.id)} />
@@ -122,13 +130,13 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
   }
 
   // Mostrar mensaje específico para roles no-admin sin clases
-  if ((initialRole === "student" || initialRole === "parent" || initialRole === "teacher") && !isLoading && (!data?.data || data.data.length === 0)) {
+  if ((userRole === "student" || userRole === "parent" || userRole === "teacher") && !isLoading && (!data?.data || data.data.length === 0)) {
     let message = "No tienes clases disponibles.";
-    if (initialRole === "student") {
+    if (userRole === "student") {
       message = "No tienes una clase asignada.";
-    } else if (initialRole === "parent") {
+    } else if (userRole === "parent") {
       message = "No tienes estudiantes asignados para ver sus clases.";
-    } else if (initialRole === "teacher") {
+    } else if (userRole === "teacher") {
       message = "No eres supervisor de ninguna clase.";
     }
     
@@ -160,7 +168,7 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {initialRole === "admin" && (
+            {userRole === "admin" && (
               <FormContainerTQ table="class" type="create" />
             )}
           </div>
@@ -172,7 +180,7 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
         <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
           <details>
             <summary className="cursor-pointer font-semibold">Información de depuración</summary>
-            <p>Usuario: {initialUserId} (Rol: {initialRole})</p>
+            <p>Usuario: {userId} (Rol: {userRole})</p>
             <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
             <p>Registros: {data?.count ?? 0}</p>
           </details>

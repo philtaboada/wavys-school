@@ -10,6 +10,7 @@ import { useExamList } from '@/utils/queries/examQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Exam } from '@/utils/types/exam';
 import Loading from '../loading';
+import { useUser } from '@/utils/hooks/useUser';
 
 interface ExamClientTQProps {
   initialRole?: string;
@@ -22,6 +23,13 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
 
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+
+  // Obtener datos del usuario desde la caché de TanStack Query
+  const { user, isAuthenticated } = useUser();
+  
+  // Utilizar datos del usuario desde la caché o los props iniciales
+  const userRole = user?.user_metadata?.role || initialRole;
+  const userId = user?.id || initialUserId;
 
   // Obtener valores de los parámetros de la URL
   const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
@@ -45,8 +53,8 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
   };
 
   // Si el usuario es un profesor, solo ver sus exámenes
-  if (initialRole === "teacher") {
-    queryParams.teacherId = initialUserId;
+  if (userRole === "teacher") {
+    queryParams.teacherId = userId;
   }
 
   // Usar el hook de TanStack Query para obtener los datos
@@ -76,7 +84,7 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
       accessor: "date",
       className: "hidden md:table-cell",
     },
-    ...(initialRole === "admin" || initialRole === "teacher"
+    ...(userRole === "admin" || userRole === "teacher"
       ? [
           {
             header: "Acciones",
@@ -106,7 +114,7 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
         </td>
         <td>
           <div className="flex items-center gap-2">
-            {(initialRole === "admin" || (initialRole === "teacher" && item.lesson?.teacher?.id === initialUserId)) && (
+            {(userRole === "admin" || (userRole === "teacher" && item.lesson?.teacher?.id === userId)) && (
               <>
                 <FormContainerTQ table="exam" type="update" data={item} />
                 <FormContainerTQ table="exam" type="delete" id={Number(item.id)} />
@@ -145,7 +153,7 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
   }
 
   // Si el usuario es estudiante o padre y no hay datos (se maneja en el hook)
-  if ((initialRole === "student" || initialRole === "parent") && !data?.data?.length) {
+  if ((userRole === "student" || userRole === "parent") && !data?.data?.length) {
     return (
       <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
         <h1 className="text-lg font-semibold mb-4">Exámenes</h1>
@@ -174,12 +182,24 @@ export default function ExamClientTQ({ initialRole, initialUserId }: ExamClientT
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
-            {(initialRole === "admin" || initialRole === "teacher") && (
+            {(userRole === "admin" || userRole === "teacher") && (
               <FormContainerTQ table="exam" type="create" />
             )}
           </div>
         </div>
       </div>
+
+      {/* Estado de depuración en entorno de desarrollo */}
+      {process.env.NODE_ENV !== 'production' && (
+        <div className="bg-blue-50 p-2 mb-4 rounded text-xs">
+          <details>
+            <summary className="cursor-pointer font-semibold">Información de depuración</summary>
+            <p>Usuario: {userId} (Rol: {userRole})</p>
+            <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
+            <p>Registros: {data?.count ?? 0}</p>
+          </details>
+        </div>
+      )}
 
       {/* LIST */}
       {isLoading ? (

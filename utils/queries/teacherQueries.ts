@@ -50,90 +50,118 @@ export function useTeacherList(params: { page: number; search?: string; userRole
   return useSupabaseQuery<{ data: any[]; count: number }>(
     ['teacher', 'list', page, search, userRole, userId],
     async (supabase) => {
-      // Construir la consulta base
-      let query = supabase
-        .from('Teacher')
-        .select('*', { count: 'exact' });
-
-      // Aplicar filtros de búsqueda
-      if (search) {
-        query = query.or(`name.ilike.%${search}%,surname.ilike.%${search}%,email.ilike.%${search}%`);
-      }
-
-      // Filtros específicos según el rol del usuario
-      if (userRole && userRole !== 'admin' && userId) {
-        if (userRole === 'teacher') {
-          // Si el usuario es profesor, solo puede ver su propio perfil
-          query = query.eq('id', userId);
-        } 
-        else if (userRole === 'student') {
-          // Obtener los profesores de las clases a las que pertenece el estudiante
-          const { data: studentData } = await supabase
-            .from('Student')
-            .select('classId')
-            .eq('id', userId)
-            .single();
+      try {
+        // Crear una promesa con timeout para la consulta
+        const fetchWithTimeout = async (timeoutMs = 10000) => {
+          let timer: NodeJS.Timeout | undefined;
           
-          if (studentData && studentData.classId) {
-            // Obtener lecciones de la clase del estudiante
-            const { data: lessonsData } = await supabase
-              .from('Lesson')
-              .select('teacherId')
-              .eq('classId', studentData.classId);
-            
-            if (lessonsData && lessonsData.length > 0) {
-              const teacherIds = lessonsData.map(lesson => lesson.teacherId);
-              query = query.in('id', teacherIds);
-            } else {
-              return { data: [], count: 0 };
-            }
-          } else {
-            return { data: [], count: 0 };
-          }
-        } 
-        else if (userRole === 'parent') {
-          // Obtener los estudiantes del padre
-          const { data: parentStudents } = await supabase
-            .from('Student')
-            .select('classId')
-            .eq('parentId', userId);
+          // Crear una promesa que rechaza después del timeout
+          const timeoutPromise = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+              reject(new Error(`La consulta ha excedido el tiempo máximo de ${timeoutMs}ms`));
+            }, timeoutMs);
+          });
           
-          if (parentStudents && parentStudents.length > 0) {
-            const classIds = parentStudents.map(student => student.classId);
-            
-            // Obtener lecciones de las clases de los estudiantes
-            const { data: lessonsData } = await supabase
-              .from('Lesson')
-              .select('teacherId')
-              .in('classId', classIds);
-            
-            if (lessonsData && lessonsData.length > 0) {
-              const teacherIds = lessonsData.map(lesson => lesson.teacherId);
-              query = query.in('id', teacherIds);
-            } else {
-              return { data: [], count: 0 };
+          try {
+            // Ejecutar la consulta original en paralelo con el timeout
+            // Construir la consulta base
+            let query = supabase
+              .from('Teacher')
+              .select('*', { count: 'exact' });
+
+            // Aplicar filtros de búsqueda
+            if (search) {
+              query = query.or(`name.ilike.%${search}%,surname.ilike.%${search}%,email.ilike.%${search}%`);
             }
-          } else {
-            return { data: [], count: 0 };
+
+            // Filtros específicos según el rol del usuario
+            if (userRole && userRole !== 'admin' && userId) {
+              if (userRole === 'teacher') {
+                // Si el usuario es profesor, solo puede ver su propio perfil
+                query = query.eq('id', userId);
+              } 
+              else if (userRole === 'student') {
+                // Obtener los profesores de las clases a las que pertenece el estudiante
+                const { data: studentData } = await supabase
+                  .from('Student')
+                  .select('classId')
+                  .eq('id', userId)
+                  .single();
+                
+                if (studentData && studentData.classId) {
+                  // Obtener lecciones de la clase del estudiante
+                  const { data: lessonsData } = await supabase
+                    .from('Lesson')
+                    .select('teacherId')
+                    .eq('classId', studentData.classId);
+                  
+                  if (lessonsData && lessonsData.length > 0) {
+                    const teacherIds = lessonsData.map(lesson => lesson.teacherId);
+                    query = query.in('id', teacherIds);
+                  } else {
+                    return { data: [], count: 0 };
+                  }
+                } else {
+                  return { data: [], count: 0 };
+                }
+              } 
+              else if (userRole === 'parent') {
+                // Obtener los estudiantes del padre
+                const { data: parentStudents } = await supabase
+                  .from('Student')
+                  .select('classId')
+                  .eq('parentId', userId);
+                
+                if (parentStudents && parentStudents.length > 0) {
+                  const classIds = parentStudents.map(student => student.classId);
+                  
+                  // Obtener lecciones de las clases de los estudiantes
+                  const { data: lessonsData } = await supabase
+                    .from('Lesson')
+                    .select('teacherId')
+                    .in('classId', classIds);
+                  
+                  if (lessonsData && lessonsData.length > 0) {
+                    const teacherIds = lessonsData.map(lesson => lesson.teacherId);
+                    query = query.in('id', teacherIds);
+                  } else {
+                    return { data: [], count: 0 };
+                  }
+                } else {
+                  return { data: [], count: 0 };
+                }
+              }
+            }
+
+            // Paginación
+            query = query
+              .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
+              .order('surname');
+
+            const { data, error, count } = await Promise.race([
+              query,
+              timeoutPromise
+            ]) as any;
+
+            if (error) {
+              throw new Error(`Error al obtener datos de profesores: ${error.message}`);
+            }
+
+            return { 
+              data: data || [], 
+              count: count || 0 
+            };
+          } finally {
+            clearTimeout(timer);
           }
-        }
+        };
+
+        // Ejecutar la consulta con timeout
+        return await fetchWithTimeout();
+      } catch (error) {
+        console.error("Error en useTeacherList:", error);
+        throw error;
       }
-
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('surname');
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        throw new Error(`Error al obtener datos de profesores: ${error.message}`);
-      }
-
-      return { 
-        data: data || [], 
-        count: count || 0 
-      };
     },
     {
       staleTime: 1000 * 60 * 5, // 5 minutos
