@@ -11,7 +11,7 @@ import {
   useCreateAttendance, 
   useUpdateAttendance,
 } from "@/utils/queries/attendanceQueries";
-import { Attendance } from "@/utils/types";
+import { Attendance } from "@/utils/types/attendance";
 
 interface AttendanceFormTQProps {
   type: "create" | "update";

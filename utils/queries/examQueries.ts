@@ -2,7 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Exam, ExamListParams, ExamListResult, CreateExamParams, UpdateExamParams } from '@/utils/types';
+import { Exam, ExamListParams, ExamListResult, CreateExamParams, UpdateExamParams } from '@/utils/types/exam';
 
 /**
  * Hook para obtener la lista de exámenes con filtrado y paginación

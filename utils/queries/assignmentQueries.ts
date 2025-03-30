@@ -2,7 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Assignment, AssignmentListParams, AssignmentListResult } from '@/utils/types';
+import { Assignment, AssignmentListParams, AssignmentListResult } from '@/utils/types/assignment';
 
 /**
  * Hook para obtener la lista de asignaciones con filtrado y paginación

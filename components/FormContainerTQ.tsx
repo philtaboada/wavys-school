@@ -18,8 +18,12 @@ import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CircleFadingPlus, Pencil, Trash } from "lucide-react";
-import { Attendance, Teacher, Student, Assignment, Exam } from "@/utils/types";
-import Loading from "@/app/protected/(dashboard)/list/loading";
+import { Teacher, Student, Assignment, Exam } from "@/utils/types";
+import { Parent } from "@/utils/types/parent";
+import ParentsForm from "./forms/ParentsForm";
+import { useDeleteParent } from "@/utils/queries/parentQueries";
+import SubjectForm from "./forms/SubjectForm";
+import { Attendance } from "@/utils/types/attendance";
 
 // Tipos para las entidades relacionadas
 interface StudentData {
@@ -49,7 +53,7 @@ interface FormContainerTQProps {
   table: string; // "attendance" | "teacher" | "student" | "assignment" | "grades" | "exams" etc.
   type: "create" | "update" | "delete";
   id?: number;
-  data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | undefined;
+  data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | Subject | undefined;
 }
 
 export default function FormContainerTQ({
@@ -66,12 +70,14 @@ export default function FormContainerTQ({
     classes?: Class[];
     grades?: { id: number; name: string }[];
     parents?: { id: string; name: string; surname: string }[];
+    teachers?: { id: string; name: string; surname: string }[];
   }>({});
   const [isLoading, setIsLoading] = useState(false);
   const deleteAttendanceMutation = useDeleteAttendance();
   const deleteTeacherMutation = useDeleteTeacher();
   const deleteStudentMutation = useDeleteStudent();
   const deleteAssignmentMutation = useDeleteAssignment();
+  const deleteParentMutation = useDeleteParent();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
@@ -126,6 +132,8 @@ export default function FormContainerTQ({
           .select('id, name')
           .order('name');
         
+        console.log("Subjects cargados en fetchRelatedData:", subjects);
+        
         setRelatedData({
           subjects: subjects || []
         });
@@ -153,6 +161,18 @@ export default function FormContainerTQ({
           grades: grades || [],
           parents: parents || []
         });
+      } else if (table === "subject") {
+        // Profesores para asignaturas
+        const { data: teachers } = await supabase
+          .from('Teacher')
+          .select('id, name, surname')
+          .order('surname');
+        
+        console.log("Teachers cargados para formulario de asignaturas:", teachers);
+        
+        setRelatedData({
+          teachers: teachers || []
+        });
       }
     } catch (error) {
       console.error('Error al cargar datos relacionados:', error);
@@ -163,13 +183,14 @@ export default function FormContainerTQ({
 
   // Manejar la apertura del diálogo
   const handleOpen = () => {
+    console.log("handleOpen ejecutado - table:", table, "type:", type);
     setOpen(true);
     fetchRelatedData();
   };
 
   // Manejar la eliminación
   const handleDelete = () => {
-    if (!id) return;
+    //if (!id) return;
     
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro?");
     if (!confirmed) return;
@@ -214,11 +235,24 @@ export default function FormContainerTQ({
           toast.error(`Error al eliminar estudiante: ${error.message}`);
         }
       });
-    }
+    } else if (table === "parent") {
+      deleteParentMutation.mutate({ id: id.toString() }, {
+        onSuccess: () => {
+          toast.success("Padre eliminado correctamente");
+          router.refresh();
+        },
+        onError: (error) => {
+          toast.error(`Error al eliminar padre: ${error.message}`);
+        }
+      });
+    } 
   };
 
   // Renderizar el formulario según el tipo y la tabla
   const renderForm = () => {
+    // Verificar datos relacionados después de cargar
+    console.log("renderForm - Estado actual de relatedData:", relatedData);
+    
     if (table === "attendance" && (type === "create" || type === "update")) {
       return (
         <AttendanceFormTQ
@@ -259,6 +293,28 @@ export default function FormContainerTQ({
         />
       );
     }
+
+    if (table === "parent" && (type === "create" || type === "update")) {
+      return (
+        <ParentsForm
+          type={type}
+          data={data as Parent}
+          setOpen={setOpen}
+        />
+      );
+    }
+
+    if (table === "subject" && (type === "create" || type === "update")) {
+      return (
+        <SubjectForm
+          type={type}
+          data={data as Subject}
+          setOpen={setOpen}
+          relatedData={relatedData}
+        />
+      );
+    }
+    
     // Agregar más formularios para otras tablas según sea necesario
     return <div>Formulario no disponible para esta tabla</div>;
   };

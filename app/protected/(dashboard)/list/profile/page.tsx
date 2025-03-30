@@ -4,7 +4,9 @@ import { createClient } from "@/utils/supabase/server";
 import Link from "next/link";
 import FormContainer from "@/components/FormContainer";
 import { useUserRole } from "@/utils/hooks";
-import { Subject, Class, Student } from "@/utils/types";
+import { Subject } from "@/utils/types/subject";
+import { Class } from "@/utils/types/class";
+import { Student } from "@/utils/types/student";
 // Enum para los tipos de sexo
 enum UserSex {
   MALE = "MALE",

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import InputField from "../InputField";
@@ -9,6 +9,14 @@ import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useCreateStudent, useUpdateStudent } from "@/utils/queries/studentQueries";
 import { Student } from "@/utils/types/student";
+import Image from "next/image";
+
+// Tipo para la imagen con información adicional de la URL firmada
+type ImageInfo = {
+  url: string;
+  path?: string;
+  expiresAt?: string;
+};
 
 interface StudentFormTQProps {
   type: "create" | "update";
@@ -53,6 +61,12 @@ const StudentFormTQ = ({
   });
 
   const [customError, setCustomError] = useState<string | null>(null);
+  // Estado para manejar la imagen
+  const [img, setImg] = useState<ImageInfo | null>(
+    data?.img ? { url: data.img, path: data.imgPath } : null
+  );
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Utilizar los hooks de mutación de TanStack Query
   const createMutation = useCreateStudent();
@@ -80,7 +94,9 @@ const StudentFormTQ = ({
         birthday: formattedBirthday,
         gradeId: formData.gradeId,
         classId: formData.classId,
-        parentId: formData.parentId
+        parentId: formData.parentId,
+        img: img?.url,
+        imgPath: img?.path
       }, {
         onSuccess: () => {
           toast.success("Estudiante creado correctamente");
@@ -108,7 +124,9 @@ const StudentFormTQ = ({
         birthday: formattedBirthday,
         gradeId: formData.gradeId,
         classId: formData.classId,
-        parentId: formData.parentId
+        parentId: formData.parentId,
+        img: img?.url,
+        imgPath: img?.path
       }, {
         onSuccess: () => {
           toast.success("Estudiante actualizado correctamente");
@@ -122,6 +140,40 @@ const StudentFormTQ = ({
       });
     }
   });
+
+  // Función para manejar la carga de imágenes con Google Cloud Storage
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
+    setIsUploading(true);
+    
+    try {
+      // Crear FormData para enviar el archivo
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      // Enviar el archivo al endpoint de carga
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar la imagen');
+      }
+      
+      // Ahora recibimos más información de la API, incluida la ruta y la fecha de expiración
+      const { url, path, expiresAt } = await response.json();
+      setImg({ url, path, expiresAt });
+    } catch (error) {
+      console.error('Error cargando imagen:', error);
+      toast.error('Error al cargar la imagen. Por favor, intenta nuevamente.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Determinar si está cargando
   const isLoading = createMutation.isPending || updateMutation.isPending;
@@ -269,6 +321,7 @@ const StudentFormTQ = ({
                 }
               />
             </div>
+            
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
                 label="Apellido *"
@@ -475,6 +528,88 @@ const StudentFormTQ = ({
                 </p>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Sección de fotografía */}
+        <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 border-t border-gray-100">
+          <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+            <div className="p-2 rounded-full bg-pink-100">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-600">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+            </div>
+            <span className="font-semibold text-gray-800 text-base sm:text-lg">Fotografía</span>
+          </div>
+          
+          <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-4 transition-all hover:border-indigo-400 max-w-xs mx-auto">
+            {img ? (
+              <div className="relative w-full pt-[100%] overflow-hidden rounded-lg shadow-md mb-3">
+                <Image 
+                  src={img.url} 
+                  alt="Foto del estudiante" 
+                  fill
+                  className="object-cover absolute inset-0"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center w-full h-48 bg-gray-100 rounded-lg mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
+            )}
+            
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+              accept="image/*"
+              className="hidden"
+            />
+            
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="inline-flex items-center justify-center gap-2 py-2 px-4 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-70 w-full"
+            >
+              {isUploading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Subiendo...</span>
+                </>
+              ) : img ? (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Cambiar imagen</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="17 8 12 3 7 8"></polyline>
+                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                  </svg>
+                  <span>Subir imagen</span>
+                </>
+              )}
+            </button>
+            {img?.expiresAt && (
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                URL válida hasta: {new Date(img.expiresAt).toLocaleDateString()}
+              </p>
+            )}
           </div>
         </div>
       </div>

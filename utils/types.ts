@@ -31,4 +31,18 @@ export interface Profile {
   created_at?: string;
   updated_at?: string;
   [key: string]: any;
+}
+
+// Tipos relacionados con profesores
+export interface Teacher {
+  id: number | string;
+  name: string;
+  surname?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  img?: string;
+  username?: string;
+  subjects?: Array<{name: string}>;
+  [key: string]: any;
 } 

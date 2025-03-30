@@ -18,21 +18,6 @@ export type LessonListResult = {
   count: number;
 };
 
-export type CreateLessonParams = {
-  name?: string;
-  classId: number;
-  teacherId: string;
-  subjectId: number;
-};
-
-export type UpdateLessonParams = {
-  id: number;
-  name?: string;
-  classId?: number;
-  teacherId?: string;
-  subjectId?: number;
-};
-
 /**
  * Hook para obtener la lista de lecciones con filtrado y paginación
  */
@@ -136,7 +121,7 @@ export function useLessonList(params: LessonListParams & { userRole?: string; us
  * Función para crear una nueva lección
  */
 export function useCreateLesson() {
-  return useSupabaseMutation<CreateLessonParams, { id: number }>(
+  return useSupabaseMutation<Lesson, { id: number }>(
     async (supabase, params) => {
       const { data, error } = await supabase
         .from('Lesson')
@@ -168,7 +153,7 @@ export function useCreateLesson() {
  * Función para actualizar una lección existente
  */
 export function useUpdateLesson() {
-  return useSupabaseMutation<UpdateLessonParams, { id: number }>(
+  return useSupabaseMutation<Lesson, { id: number }>(
     async (supabase, params) => {
       const { id, ...lessonData } = params;
       

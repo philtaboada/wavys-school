@@ -2,33 +2,50 @@
 
 import { useQuery, useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { createClient } from '@/utils/supabase/client';
+import { PostgrestError } from '@supabase/supabase-js';
+
+// Tipo para errores de Supabase
+export type SupabaseError = PostgrestError | Error;
 
 /**
  * Hook personalizado para crear consultas a Supabase con TanStack Query.
  * Este hook combina la potencia de Supabase con las capacidades de caché de TanStack Query.
  * 
  * @template TData Tipo de datos que devolverá la consulta
- * @param queryKey Clave única para identificar esta consulta en la caché de TanStack Query
+ * @template TResult Tipo de datos transformados (opcional)
+ * @param queryKey Clave estructurada para identificar esta consulta en la caché de TanStack Query
  * @param queryFn Función que realiza la consulta a Supabase y devuelve los datos
  * @param options Opciones adicionales para configurar el comportamiento de la consulta
  */
-export function useSupabaseQuery<TData>(
+export function useSupabaseQuery<TData, TResult = TData>(
   queryKey: QueryKey,
   queryFn: (supabase: ReturnType<typeof createClient>) => Promise<TData>,
   options: {
     enabled?: boolean;
     staleTime?: number;
+    gcTime?: number;
     refetchOnWindowFocus?: boolean;
     refetchOnMount?: boolean;
-    onSuccess?: (data: TData) => void;
-    onError?: (error: Error) => void;
+    retry?: number | boolean | ((failureCount: number, error: SupabaseError) => boolean);
+    retryDelay?: number | ((retryAttempt: number) => number);
+    select?: (data: TData) => TResult;
+    onSuccess?: (data: TResult | TData) => void;
+    onError?: (error: SupabaseError) => void;
+    keepPreviousData?: boolean;
+    useErrorBoundary?: boolean;
   } = {}
 ) {
   return useQuery({
     queryKey,
     queryFn: async () => {
-      const supabase = createClient();
-      return queryFn(supabase);
+      try {
+        const supabase = createClient();
+        return await queryFn(supabase);
+      } catch (error) {
+        // Capturar y formatear errores de manera consistente
+        console.error('Error en consulta Supabase:', error);
+        throw error instanceof Error ? error : new Error(String(error));
+      }
     },
     ...options
   });
@@ -47,9 +64,11 @@ export function useSupabaseMutation<TVariables, TData>(
   mutationFn: (supabase: ReturnType<typeof createClient>, variables: TVariables) => Promise<TData>,
   options: {
     onSuccess?: (data: TData, variables: TVariables) => void | Promise<unknown>;
-    onError?: (error: Error, variables: TVariables) => void;
-    onSettled?: (data: TData | undefined, error: Error | null, variables: TVariables) => void;
-    invalidateQueries?: QueryKey[];
+    onError?: (error: SupabaseError, variables: TVariables) => void;
+    onSettled?: (data: TData | undefined, error: SupabaseError | null, variables: TVariables) => void;
+    retry?: number | boolean | ((failureCount: number, error: SupabaseError) => boolean);
+    retryDelay?: number | ((retryAttempt: number) => number);
+    invalidateQueries?: QueryKey | QueryKey[];
   } = {}
 ) {
   const queryClient = useQueryClient();
@@ -57,8 +76,13 @@ export function useSupabaseMutation<TVariables, TData>(
 
   return useMutation({
     mutationFn: async (variables: TVariables) => {
-      const supabase = createClient();
-      return mutationFn(supabase, variables);
+      try {
+        const supabase = createClient();
+        return await mutationFn(supabase, variables);
+      } catch (error) {
+        console.error('Error en mutación Supabase:', error);
+        throw error instanceof Error ? error : new Error(String(error));
+      }
     },
     onSuccess: async (data, variables) => {
       if (options.onSuccess) {
@@ -66,9 +90,17 @@ export function useSupabaseMutation<TVariables, TData>(
       }
       
       // Invalidar consultas relacionadas si se especificaron
-      if (invalidateQueries && invalidateQueries.length > 0) {
-        for (const key of invalidateQueries) {
-          await queryClient.invalidateQueries({ queryKey: key });
+      if (invalidateQueries) {
+        const keysToInvalidate = Array.isArray(invalidateQueries) && !Array.isArray(invalidateQueries[0]) 
+          ? [invalidateQueries] 
+          : invalidateQueries;
+          
+        if (Array.isArray(keysToInvalidate)) {
+          for (const key of keysToInvalidate) {
+            await queryClient.invalidateQueries({ queryKey: key });
+          }
+        } else {
+          await queryClient.invalidateQueries({ queryKey: keysToInvalidate });
         }
       }
     },

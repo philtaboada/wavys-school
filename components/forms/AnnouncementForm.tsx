@@ -14,7 +14,7 @@ import {
   useCreateAnnouncement,
   useUpdateAnnouncement
 } from "@/utils/queries/announcementQueries";
-import { Announcement } from "@/utils/types";
+import { Announcement } from "@/utils/types/announcement";
 
 interface AnnouncementFormProps {
   type: "create" | "update";
@@ -119,7 +119,7 @@ const AnnouncementForm = ({
           name="description"
           register={register}
           error={errors?.description}
-          textarea
+          textArea
         />
         <InputField
           label="Fecha"

@@ -1,6 +1,7 @@
 'use client';
 
 import { useSupabaseQuery } from '@/utils/queries/useSupabaseQuery';
+import { queryKeys } from '@/utils/queries/queryKeys';
 import Image from "next/image";
 
 interface UserCardTQProps {
@@ -11,23 +12,28 @@ export default function UserCardTQ({ type }: UserCardTQProps) {
   // Determinar el nombre de la tabla en singular
   const tableName = type === 'Admin' ? 'Admin' : type;
 
-  // Usar TanStack Query para el conteo
+  // Usar TanStack Query con clave estructurada de queryKeys
   const { data: count, isLoading, error } = useSupabaseQuery<number>(
-    ['user_count', tableName],
+    queryKeys.users.count(tableName),
     async (supabase) => {
       const { count, error } = await supabase
         .from(tableName)
         .select('*', { count: 'exact', head: true });
       
       if (error) {
-        throw new Error(`Error al consultar ${tableName}: ${error.message}`);
+        throw error;
       }
       
       return count || 0;
     },
     {
-      staleTime: 1000 * 60 * 5, // 5 minutos
-      refetchOnWindowFocus: false,
+      // Usar gcTime en lugar de staleTime para datos estáticos que no cambian frecuentemente
+      staleTime: 1000 * 60 * 10, // 10 minutos
+      gcTime: 1000 * 60 * 60, // 1 hora
+      retry: (failureCount, error) => {
+        // Solo reintentar hasta 2 veces y solo si no es un error de 'no existe la tabla'
+        return failureCount < 2 && !error.message?.includes('does not exist');
+      }
     }
   );
 

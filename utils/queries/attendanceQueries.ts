@@ -2,7 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Attendance, AttendanceListParams, AttendanceListResult } from '@/utils/types';
+import { Attendance, AttendanceListParams, AttendanceListResult } from '@/utils/types/attendance';
 /**
  * Hook para obtener la lista de asistencias con filtrado y paginación
  */

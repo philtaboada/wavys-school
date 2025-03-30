@@ -9,7 +9,7 @@ import { teacherSchema, TeacherSchema } from "@/lib/formValidationSchemas";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useCreateTeacher, useUpdateTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
-import { Teacher } from "@/utils/types";
+import { Teacher } from "@/utils/types/teacher";
 
 // Tipo para la imagen con información adicional de la URL firmada
 type ImageInfo = {
@@ -18,14 +18,26 @@ type ImageInfo = {
   expiresAt?: string;
 };
 
+// Extendemos el tipo TeacherDetails para incluir las propiedades que podrían faltar
+interface EnhancedTeacherDetails extends TeacherDetails {
+  username?: string;
+  imgPath?: string;
+  subjects?: Array<{id: number; name: string}>;
+}
+
 interface TeacherFormTQProps {
   type: "create" | "update";
-  data?: Teacher | TeacherDetails;
+  data?: Teacher | EnhancedTeacherDetails;
   setOpen: (open: boolean) => void;
   relatedData?: {
     subjects?: { id: number; name: string }[];
   };
 }
+
+// Helper para verificar si el dato es de tipo Teacher (tiene subjects)
+const isTeacher = (data: any): data is Teacher => {
+  return data && 'subjects' in data;
+};
 
 const TeacherFormTQ = ({
   type,
@@ -33,6 +45,11 @@ const TeacherFormTQ = ({
   setOpen,
   relatedData,
 }: TeacherFormTQProps) => {
+  // Depuración para ver qué asignaturas se están recibiendo
+  console.log("TeacherFormTQ - Tipo:", type);
+  console.log("TeacherFormTQ - Data recibida:", data);
+  console.log("TeacherFormTQ - RelatedData recibida:", relatedData);
+
   const {
     register,
     handleSubmit,
@@ -41,7 +58,7 @@ const TeacherFormTQ = ({
   } = useForm<TeacherSchema>({
     resolver: zodResolver(teacherSchema),
     defaultValues: {
-      id: data?.id,
+      id: data?.id ? String(data.id) : undefined,
       username: data?.username || "",
       name: data?.name || "",
       surname: data?.surname || "",
@@ -52,7 +69,7 @@ const TeacherFormTQ = ({
       bloodType: data?.bloodType || "",
       sex: data?.sex as "MALE" | "FEMALE" | undefined,
       birthday: data?.birthday ? new Date(data.birthday) : undefined,
-      subjects: data?.subjects?.map(s => s.id.toString()) || []
+      subjects: isTeacher(data) && data.subjects ? data.subjects.map(s => String(s.id)) : []
     }
   });
 
@@ -87,7 +104,7 @@ const TeacherFormTQ = ({
         address: formData.address || "",
         bloodType: formData.bloodType || "",
         sex: formData.sex || "",
-        birthday: formData.birthday?.toISOString().split("T")[0] || "",
+        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
         subjects: numericSubjects,
         img: img?.url,
         imgPath: img?.path
@@ -115,7 +132,7 @@ const TeacherFormTQ = ({
         address: formData.address,
         bloodType: formData.bloodType,
         sex: formData.sex,
-        birthday: formData.birthday?.toISOString().split("T")[0],
+        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
         subjects: numericSubjects,
         img: img?.url,
         imgPath: img?.path
@@ -529,22 +546,23 @@ const TeacherFormTQ = ({
               </div>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
-                {relatedData?.subjects?.map((subject) => (
-                  <div key={subject.id} className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100">
-                    <input
-                      type="checkbox"
-                      id={`subject-${subject.id}`}
-                      value={subject.id}
-                      {...register("subjects")}
-                      defaultChecked={data?.subjects?.some(s => s.id === subject.id)}
-                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <label htmlFor={`subject-${subject.id}`} className="text-sm font-medium text-gray-700 cursor-pointer">
-                      {subject.name}
-                    </label>
-                  </div>
-                ))}
-                {(!relatedData?.subjects || relatedData.subjects.length === 0) && (
+                {relatedData?.subjects && relatedData.subjects.length > 0 ? (
+                  relatedData.subjects.map((subject) => (
+                    <div key={subject.id} className="flex items-center space-x-2 bg-white p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                      <input
+                        type="checkbox"
+                        id={`subject-${subject.id}`}
+                        value={subject.id}
+                        {...register("subjects")}
+                        defaultChecked={isTeacher(data) && data.subjects?.some(s => Number(s.id) === subject.id)}
+                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor={`subject-${subject.id}`} className="text-sm font-medium text-gray-700 cursor-pointer">
+                        {subject.name}
+                      </label>
+                    </div>
+                  ))
+                ) : (
                   <p className="text-sm text-gray-500 col-span-full text-center py-4">
                     No hay asignaturas disponibles
                   </p>

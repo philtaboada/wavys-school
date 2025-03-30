@@ -133,3 +133,43 @@ export const attendanceSchema = z.object({
 });
 
 export type AttendanceSchema = z.infer<typeof attendanceSchema>;
+
+
+export const lessonSchema = z.object({
+  id: z.coerce.number().optional(),
+  name: z.string().min(1, { message: "Nombre de la lección es requerido!" }),
+  classId: z.coerce.number().min(1, { message: "ID de la clase es requerido!" }),
+  teacherId: z.string().min(1, { message: "ID del profesor es requerido!" }),
+  subjectId: z.coerce.number().min(1, { message: "ID del tema es requerido!" }),
+});
+
+export type LessonSchema = z.infer<typeof lessonSchema>;
+
+export const assignmentSchema = z.object({
+  id: z.coerce.number().optional(),
+  title: z.string().min(1, { message: "Título es requerido!" }),
+  startDate: z.coerce.date({ message: "Fecha de inicio es requerida!" }),
+  dueDate: z.coerce.date({ message: "Fecha de entrega es requerida!" }),
+  lessonId: z.coerce.number().min(1, { message: "ID de la lección es requerido!" }),
+});
+
+export type AssignmentSchema = z.infer<typeof assignmentSchema>;
+
+export const resultSchema = z.object({
+  id: z.coerce.number().optional(),
+  score: z.number().min(0, { message: "Puntuación debe ser mayor o igual a 0!" }),
+  studentId: z.string().min(1, { message: "ID del estudiante es requerido!" }),
+  examId: z.coerce.number().optional(),
+  assignmentId: z.coerce.number().optional(),
+});
+
+export type ResultSchema = z.infer<typeof resultSchema>;
+
+
+export const gradeSchema = z.object({
+  id: z.coerce.number().optional(),
+  name: z.string().min(1, { message: "Nombre de la grado es requerido!" }),
+});
+
+export type GradeSchema = z.infer<typeof gradeSchema>;
+

@@ -79,6 +79,15 @@ export function useUserAuth() {
     return queryClient.getQueryData(['currentUser']) as User | undefined;
   };
 
+  // Obtener solo el id y role que esta en el user_metadata
+  const getCurrentUserMetadata = () => {
+    const user = getCurrentUser();
+    return {
+      id: user?.id,
+      role: user?.user_metadata?.role
+    };
+  };
+
   // Método para obtener el perfil del usuario desde la caché
   const getUserProfile = () => {
     return queryClient.getQueryData(['userProfile']) as Profile | undefined;
@@ -86,6 +95,7 @@ export function useUserAuth() {
 
   return {
     getCurrentUser,
-    getUserProfile
+    getUserProfile,
+    getCurrentUserMetadata
   };
 } 

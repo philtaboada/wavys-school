@@ -2,14 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { createClient } from '@/utils/supabase/server';
+import path from 'path';
 
-// Configurar cliente de Google Cloud Storage
+// Configurar cliente de Google Cloud Storage usando el archivo JSON de credenciales
 const storage = new Storage({
-  projectId: process.env.GCP_PROJECT_ID,
-  credentials: JSON.parse(process.env.GCP_CREDENTIALS || '{}'),
+  keyFilename: path.resolve(process.cwd(), 'auth-test-420114-a6d31b5cc686.json'),
 });
 
-const bucket = storage.bucket(process.env.GCP_BUCKET_NAME || '');
+const bucketName = 'alfred-nobel'; // Nombre correcto del bucket según la captura de GCP
+const bucket = storage.bucket(bucketName);
 
 // Tiempo de expiración de la URL firmada en minutos (7 días)
 const URL_EXPIRATION_TIME = 60 * 24 * 7;
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
     const fileInfo = {
       url,
       path: filePath,
-      bucket: process.env.GCP_BUCKET_NAME,
+      bucket: bucketName,
       filename: fileName,
       contentType: file.type,
       userId: session.user.id,
@@ -106,9 +107,25 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error al cargar el archivo:', error);
+    
+    // Proporcionar mensajes de error más específicos
+    let errorMessage = 'Error al cargar el archivo';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      // Errores específicos de Google Cloud Storage
+      if (error.message.includes('does not exist')) {
+        errorMessage = 'El bucket especificado no existe. Verifique la configuración.';
+      } else if (error.message.includes('permission')) {
+        errorMessage = 'Error de permisos al acceder al almacenamiento. Verifique las credenciales.';
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Error de conexión con Google Cloud Storage.';
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Error al cargar el archivo' }, 
-      { status: 500 }
+      { error: errorMessage }, 
+      { status: statusCode }
     );
   }
 } 

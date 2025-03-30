@@ -376,19 +376,19 @@ export function useResultList(params: ResultListParams & { userRole?: string; us
           // Buscar en título de examen/tarea
           if (result.examId && examMap.has(result.examId)) {
             const exam = examMap.get(result.examId);
-            if (exam.title && exam.title.toLowerCase().includes(searchLower)) return true;
+            if (exam?.title && exam.title.toLowerCase().includes(searchLower)) return true;
           }
           if (result.assignmentId && assignmentMap.has(result.assignmentId)) {
             const assignment = assignmentMap.get(result.assignmentId);
-            if (assignment.title && assignment.title.toLowerCase().includes(searchLower)) return true;
+            if (assignment?.title && assignment.title.toLowerCase().includes(searchLower)) return true;
           }
           
           // Buscar en nombre de estudiante
           if (studentMap.has(result.studentId)) {
             const student = studentMap.get(result.studentId);
             if (
-              student.name.toLowerCase().includes(searchLower) ||
-              student.surname.toLowerCase().includes(searchLower)
+              student?.name.toLowerCase().includes(searchLower) ||
+              student?.surname.toLowerCase().includes(searchLower)
             ) {
               return true;
             }
@@ -423,20 +423,22 @@ export function useResultList(params: ResultListParams & { userRole?: string; us
         }
         
         const student = studentMap.get(result.studentId) || { name: 'Desconocido', surname: '' };
-        const lesson = assessment.lesson || {};
+        const lesson = assessment?.lesson || { teacher: undefined, class: undefined } as Partial<Lesson>;
         const teacher = lesson.teacher || { name: 'Desconocido', surname: '' };
         const className = lesson.class ? lesson.class.name : 'Desconocida';
         
         return {
           id: result.id,
-          title: assessment.title || 'Sin título',
+          title: assessment?.title || 'Sin título',
           studentName: student.name,
           studentSurname: student.surname,
           teacherName: teacher.name,
           teacherSurname: teacher.surname,
           score: result.score,
           className,
-          startTime: isExam ? assessment.startTime : assessment.startDate,
+          startTime: isExam 
+            ? (assessment as Exam)?.startTime 
+            : (assessment as Assignment)?.startDate,
           isExam
         };
       }).filter(Boolean) as ResultDisplay[];

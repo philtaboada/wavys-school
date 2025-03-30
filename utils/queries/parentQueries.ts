@@ -2,7 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Parent, ParentListParams, ParentListResult, CreateParentParams, UpdateParentParams } from '@/utils/types';
+import { Parent, ParentListParams, ParentListResult, CreateParentParams, UpdateParentParams } from '@/utils/types/parent';
 
 /**
  * Hook para obtener la lista de padres con filtrado y paginación

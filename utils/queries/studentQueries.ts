@@ -2,7 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Student, StudentListParams, StudentListResult, CreateStudentParams, UpdateStudentParams } from '@/utils/types';
+import { Student, StudentListParams, StudentListResult, CreateStudentParams, UpdateStudentParams } from '@/utils/types/student';
 
 export type StudentDetails = {
   id: string;

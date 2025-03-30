@@ -1,7 +1,10 @@
+'use client'
+
 import { useUserRole } from "@/utils/hooks";
 import ClientWrapper from "./client-wrapper";
+import { useUserAuth } from "@/utils/hooks/useUserAuth";
 
-export default async function AttendanceTQPage({
+export default function AttendanceTQPage({
   searchParams,
 }: {
   searchParams: Promise<{ 
@@ -11,7 +14,9 @@ export default async function AttendanceTQPage({
   }>;
 }) {
   // Obtenemos la información del usuario actual usando nuestro hook
-  const { userId, role } = await useUserRole();
+  //const { userId, role } = await useUserRole();
+  const { getCurrentUserMetadata } = useUserAuth()
+  const { role, id } = getCurrentUserMetadata()
   
-  return <ClientWrapper initialRole={role} initialUserId={userId} />;
+  return <ClientWrapper initialRole={role} initialUserId={id} />;
 } 

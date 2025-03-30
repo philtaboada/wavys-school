@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useCreateAssignment, useUpdateAssignment } from "@/utils/queries/assignmentQueries";
-import { Assignment } from "@/utils/types";
+import { Assignment } from "@/utils/types/assignment";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 

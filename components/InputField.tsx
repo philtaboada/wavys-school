@@ -13,6 +13,7 @@ interface InputFieldProps {
   hidden?: boolean;
   className?: string;
   icon?: ReactNode;
+  textArea?: boolean;
 }
 
 const InputField = ({
@@ -26,8 +27,9 @@ const InputField = ({
   error,
   hidden = false,
   className = "",
-  icon
-}: InputFieldProps) => {
+  icon,
+  textArea = false,
+}: InputFieldProps) => {  
   if (hidden) {
     return (
       <input type="hidden" {...register(name, registerOptions)} defaultValue={defaultValue} />

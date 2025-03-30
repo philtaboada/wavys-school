@@ -9,7 +9,7 @@ import FormContainerTQ from "@/components/FormContainerTQ";
 import { useParentList } from '@/utils/queries/parentQueries';
 import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye } from 'lucide-react';
-import { Parent } from '@/utils/types';
+import { Parent } from '@/utils/types/parent';
 import Link from 'next/link';
 import Loading from '../loading';
 
@@ -94,7 +94,7 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
         </td>
         <td className="hidden md:table-cell">{item.username}</td>
         <td className="hidden md:table-cell">
-          {item.students?.map(student => 
+          {item.students?.map((student: {name: string, surname: string}) => 
             `${student.name} ${student.surname || ''}`
           ).join(", ") || "Sin estudiantes"}
         </td>

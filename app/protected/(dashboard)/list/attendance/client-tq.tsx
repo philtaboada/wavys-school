@@ -9,9 +9,10 @@ import Pagination from "@/components/Pagination";
 import FormContainerTQ from "@/components/FormContainerTQ";
 import { useAttendanceList } from '@/utils/queries/attendanceQueries';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
-import { Attendance } from '@/utils/types';
+import { Attendance } from '@/utils/types/attendance';
 import Loading from '../loading';
 import { useUser } from '@/utils/hooks/useUser';
+import { useUserAuth } from '@/utils/hooks/useUserAuth';
 
 interface AttendanceClientTQProps {
   initialRole?: string;
@@ -25,8 +26,9 @@ export default function AttendanceClientTQ({ initialRole, initialUserId }: Atten
   // Estado local para la búsqueda
   const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
 
+
   // Obtener datos del usuario desde la caché de TanStack Query
-  const { user, isAuthenticated } = useUser();
+  const { user } = useUser();
   
   // Utilizar datos del usuario desde la caché o los props iniciales
   const userRole = user?.user_metadata?.role || initialRole;
