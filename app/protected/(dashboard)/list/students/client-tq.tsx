@@ -9,7 +9,7 @@ import FormContainerTQ from "@/components/FormContainerTQ";
 import { useStudentList } from '@/utils/queries/studentQueries';
 import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus, Eye, CircleUser } from 'lucide-react';
-import { Student } from '@/utils/types';
+import { Student } from '@/utils/types/student';
 import Link from 'next/link';
 import Loading from '../loading';
 
