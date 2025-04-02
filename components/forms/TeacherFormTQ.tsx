@@ -104,7 +104,7 @@ const TeacherFormTQ = ({
         address: formData.address || "",
         bloodType: formData.bloodType || "",
         sex: formData.sex || "",
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
+        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
         subjects: numericSubjects,
         img: img?.url,
         imgPath: img?.path
@@ -132,7 +132,7 @@ const TeacherFormTQ = ({
         address: formData.address,
         bloodType: formData.bloodType,
         sex: formData.sex,
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
+        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
         subjects: numericSubjects,
         img: img?.url,
         imgPath: img?.path
@@ -259,7 +259,7 @@ const TeacherFormTQ = ({
               <InputField
                 label="Correo electrónico *"
                 name="email"
-                defaultValue={data?.email}
+                defaultValue={data?.email || ""}
                 register={register}
                 error={errors?.email}
                 className="bg-gray-50 focus:bg-white"
@@ -349,7 +349,7 @@ const TeacherFormTQ = ({
               <InputField
                 label="Teléfono"
                 name="phone"
-                defaultValue={data?.phone}
+                defaultValue={data?.phone || ""}
                 register={register}
                 error={errors.phone}
                 className="bg-gray-50 focus:bg-white"
