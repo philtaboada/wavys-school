@@ -2,6 +2,7 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
+import { useQueryClient } from '@tanstack/react-query';
 
 export type TeacherDetails = {
   id: string;
@@ -290,27 +291,78 @@ export function useDeleteTeacher() {
  * Función para actualizar un profesor
  */
 export function useUpdateTeacher() {
-  return useSupabaseMutation<TeacherDetails, { id: string }>(
+  const queryClient = useQueryClient();
+
+  return useSupabaseMutation<any, { id: string }>(
     async (supabase, params) => {
-      const { id, counts, ...rest } = params;
-      
-      const { data, error } = await supabase
+      const { 
+        id, 
+        subjects,
+        password,
+        email,
+        username,
+        createdAt,
+        counts,
+        ...teacherProfileData
+      } = params;
+
+      const { error: profileError } = await supabase
         .from('Teacher')
-        .update(rest)
-        .eq('id', id)
-        .select('id')
-        .single();
-      
-      if (error) {
-        throw new Error(`Error al actualizar profesor: ${error.message}`);
+        .update(teacherProfileData)
+        .eq('id', id);
+
+      if (profileError) {
+        console.error("Data sent for profile update:", teacherProfileData);
+        throw new Error(`Error al actualizar perfil del profesor: ${profileError.message}`);
       }
+
+      // 2. Actualizar asignaturas (método: borrar todo y reinsertar)
+      if (subjects && Array.isArray(subjects)) {
+        const newSubjectIds = subjects
+          .map((s: any) => (typeof s === 'object' && s !== null && s.id !== undefined ? s.id : s))
+          .filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+
+        // Borrar todas las asignaturas existentes para este profesor
+        const { error: deleteError } = await supabase
+          .from('subject_teacher')
+          .delete()
+          .eq('teacherId', id);
+
+        if (deleteError) {
+          // Podríamos registrar el error pero intentar continuar, o lanzar.
+          // Lanzar es más seguro para evitar inconsistencias.
+          console.error(`Error al borrar asignaturas existentes para teacher ${id}:`, deleteError);
+          throw new Error(`Error al preparar actualización de asignaturas: ${deleteError.message}`);
+        }
+
+        // Insertar las nuevas asignaturas si hay alguna
+        if (newSubjectIds.length > 0) {
+          const insertData = newSubjectIds.map((subjectId: number) => ({ teacherId: id, subjectId }));
+          const { error: addError } = await supabase
+            .from('subject_teacher')
+            .insert(insertData);
+
+          if (addError) {
+            console.error(`Error al insertar nuevas asignaturas para teacher ${id}:`, addError);
+            // Este error SÍ debería lanzarse, ya que la operación falló.
+            // Podría ser el error de constraint si no se ha arreglado la BD.
+            throw new Error(`Error al asignar nuevas asignaturas: ${addError.message}`);
+          }
+        }
+        // Si newSubjectIds está vacío, simplemente se borraron todas las asignaciones.
+      }
+      // Si 'subjects' no se proporciona en params, no se hace nada con las asignaturas.
       
-      return data as { id: string };
+      return { id };
     },
     {
-      invalidateQueries: [['teacher', 'details'], ['teacher', 'list']],
-      onSuccess: () => {
-        console.log('Profesor actualizado exitosamente');
+      onSuccess: (data, variables) => {
+        console.log(`Profesor ${variables.id} actualizado exitosamente`);
+        queryClient.invalidateQueries({ queryKey: ['teacher', 'details', variables.id] });
+        queryClient.invalidateQueries({ queryKey: ['teacher', 'list'] });
+      },
+      onError: (error, variables) => {
+         console.error(`Error completo al actualizar profesor ${variables.id}:`, error);
       }
     }
   );

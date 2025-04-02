@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
@@ -12,38 +12,58 @@ import { Class } from '@/utils/types/class';
 import Loading from '../loading';
 import { useUser } from '@/utils/hooks/useUser';
 
+// Definir tipo SearchParams
+interface SearchParams {
+  page?: string;
+  search?: string;
+  gradeId?: string;
+  [key: string]: string | undefined;
+}
+
 interface ClassClientTQProps {
   initialRole?: string;
   initialUserId?: string;
+  searchParams?: SearchParams; // Aceptar prop
 }
 
-export default function ClassClientTQ({ initialRole, initialUserId }: ClassClientTQProps) {
-  const searchParams = useSearchParams();
+export default function ClassClientTQ({ 
+  initialRole, 
+  initialUserId, 
+  searchParams: initialSearchParams // Renombrar
+}: ClassClientTQProps) {
+  const currentSearchParams = useSearchParams();
   const router = useRouter();
 
-  // Estado local para la búsqueda
-  const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+  // Estado local para la búsqueda, inicializado desde props
+  const [searchValue, setSearchValue] = useState(initialSearchParams?.search || '');
 
-  // Obtener datos del usuario desde la caché de TanStack Query
   const { user, isAuthenticated } = useUser();
-  
-  // Utilizar datos del usuario desde la caché o los props iniciales
   const userRole = user?.user_metadata?.role || initialRole;
   const userId = user?.id || initialUserId;
 
-  // Obtener valores de los parámetros de la URL
-  const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
-  const supervisorId = searchParams.get('supervisorId') || undefined;
-  
-  // Usar el hook de TanStack Query para obtener los datos
+  // Leer parámetros ACTUALES de la URL
+  const pageNum = parseInt(currentSearchParams.get('page') || "1", 10);
+  const currentSearch = currentSearchParams.get('search') || undefined;
+  const gradeIdFilter = currentSearchParams.get('gradeId') ? parseInt(currentSearchParams.get('gradeId') as string, 10) : undefined;
+  // Añadir otros filtros si existen (ej. supervisorId)
+  // const supervisorIdFilter = currentSearchParams.get('supervisorId') || undefined;
+
+  // Sincronizar estado local de búsqueda
+  useEffect(() => {
+      setSearchValue(currentSearch ?? '');
+  }, [currentSearch]);
+
+  // Usar el hook con parámetros ACTUALES de la URL
   const { data, isLoading, error } = useClassList({
     page: pageNum,
-    search: searchValue || undefined,
+    search: currentSearch, // Usar valor actual de URL
+    gradeId: gradeIdFilter,
+    // supervisorId: supervisorIdFilter, // Añadir si se usa filtro
     userRole: userRole,
     userId: userId
   });
 
-  // Definir las columnas de la tabla
+  // Definir columnas (sin cambios)
   const columns = [
     {
       header: "Nombre de la clase",
@@ -74,26 +94,27 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
       : []),
   ];
 
-  // Función para renderizar cada fila
+  // Función renderRow (sin cambios significativos, asegurar tipos)
   const renderRow = (item: Class) => {
     return (
       <tr
         key={item.id}
         className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
       >
-        <td className="flex items-center gap-4 p-4">{item.name}</td>
-        <td className="hidden md:table-cell">{item.capacity}</td>
-        <td className="hidden md:table-cell">{item.Grade ? item.Grade.level : 'Sin grado'}</td>
+        <td className="p-4">{item.name}</td>
+        <td className="hidden md:table-cell">{item.capacity ?? '-'}</td>
+        <td className="hidden md:table-cell">{item.Grade ? item.Grade.level : '-'}</td>
         <td className="hidden md:table-cell">
           {item.Supervisor 
             ? `${item.Supervisor.name} ${item.Supervisor.surname}` 
-            : 'Sin supervisor'}
+            : '-'}
         </td>
         <td>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {userRole === "admin" && (
               <>
-                <FormContainerTQ table="class" type="update" data={item as any} />
+                {/* Asegurar que data tenga el tipo correcto si es necesario */}
+                <FormContainerTQ table="class" type="update" data={item as any} /> 
                 <FormContainerTQ table="class" type="delete" id={Number(item.id)} />
               </>
             )}
@@ -110,9 +131,13 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
 
   // Manejar el envío del formulario de búsqueda
   const handleSearch = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('search', searchValue);
-    params.set('page', '1'); // Resetear a la primera página al buscar
+    const params = new URLSearchParams(currentSearchParams.toString());
+    if (searchValue) {
+      params.set('search', searchValue);
+    } else {
+      params.delete('search');
+    }
+    params.set('page', '1'); 
     router.push(`?${params.toString()}`);
   };
 
@@ -123,7 +148,8 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
         <h1 className="text-lg font-semibold mb-4">Error en Lista de Clases</h1>
         <p>Se produjo un error al obtener los datos</p>
         <pre className="bg-red-50 p-2 mt-2 rounded text-xs overflow-auto">
-          {error.message}
+          {typeof error === 'object' && error !== null && 'message' in error ? 
+            (error as {message: string}).message : String(error)}
         </pre>
       </div>
     );
@@ -151,23 +177,24 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
         <h1 className="hidden md:block text-lg font-semibold">
           Todas las clases
         </h1>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-end">
           <TableSearch
             value={searchValue}
             onChange={handleSearchChange}
             onSearch={handleSearch}
           />
           <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
+             {/* Quitar botones filtro/orden no implementados */}
+            {/* <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ListFilterPlus className="w-4 h-4" />
             </button>
             <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow">
               <ArrowDownNarrowWide className="w-4 h-4" />
-            </button>
+            </button> */}
             {userRole === "admin" && (
               <FormContainerTQ table="class" type="create" />
             )}
@@ -181,20 +208,20 @@ export default function ClassClientTQ({ initialRole, initialUserId }: ClassClien
           <details>
             <summary className="cursor-pointer font-semibold">Información de depuración</summary>
             <p>Usuario: {userId} (Rol: {userRole})</p>
-            <p>Página: {pageNum}, Búsqueda: "{searchValue}"</p>
+            <p>Página: {pageNum}, Búsqueda: "{currentSearch}"</p>
             <p>Registros: {data?.count ?? 0}</p>
           </details>
         </div>
       )}
 
       {/* LIST */}
-      {isLoading ? (
+      {isLoading && !data ? (
         <div className="py-8 text-center">
           <Loading />
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
-          <p>No se encontraron clases.</p>
+          <p>No se encontraron clases{currentSearch ? ` para "${currentSearch}"` : ''}.</p>
         </div>
       ) : (
         <Table columns={columns} renderRow={renderRow} data={data.data} />
