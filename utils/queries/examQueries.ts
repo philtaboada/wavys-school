@@ -3,95 +3,136 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Exam, ExamListParams, ExamListResult, CreateExamParams, UpdateExamParams } from '@/utils/types/exam';
+import { createClient } from '@/utils/supabase/client'; // Importar para filtros
 
 /**
- * Hook para obtener la lista de exámenes con filtrado y paginación
+ * Hook para obtener la lista de exámenes con filtrado y paginación optimizado
  */
 export function useExamList(params: ExamListParams) {
   const { page, search, lessonId, subjectId, teacherId, classId, startDate, endDate } = params;
-  
+
   return useSupabaseQuery<ExamListResult>(
     ['exam', 'list', page, search, lessonId, subjectId, teacherId, classId, startDate, endDate],
     async (supabase) => {
-      // Construir la consulta base
-      let query = supabase
-        .from('Exam')
-        .select(`
-          *,
-          Lesson(id, name, teacherId, Subject(id, name))
-        `, { count: 'exact' });
 
-      // Aplicar filtros de búsqueda
-      if (search) {
-        query = query.ilike('title', `%${search}%`);
-      }
+      let filterLessonIds: number[] | null = null;
 
-      // Filtrar por lección
-      if (lessonId) {
-        query = query.eq('lessonId', lessonId);
-      }
-
-      // Filtrar por profesor
-      if (teacherId) {
-        query = query.eq('Lesson.teacherId', teacherId);
-      }
-
-      // Filtrar por asignatura
+      // **Manejo de filtros dependientes (antes de construir la query principal)**
       if (subjectId) {
-        // Obtenemos primero las lecciones de esa asignatura
         const { data: lessons } = await supabase
           .from('Lesson')
           .select('id')
           .eq('subjectId', subjectId);
-
         if (lessons && lessons.length > 0) {
-          const lessonIds = lessons.map(lesson => lesson.id);
-          query = query.in('lessonId', lessonIds);
+          filterLessonIds = lessons.map(lesson => lesson.id);
         } else {
-          return { data: [], count: 0 };
+          return { data: [], count: 0 }; // No hay lecciones para esa asignatura
         }
       }
 
-      // Filtrar por clase
       if (classId) {
-        // Obtenemos primero las lecciones para esa clase
-        const { data: lessons } = await supabase
-          .from('Lesson')
-          .select('id')
-          .eq('classId', classId);
-
-        if (lessons && lessons.length > 0) {
-          const lessonIds = lessons.map(lesson => lesson.id);
-          query = query.in('lessonId', lessonIds);
-        } else {
-          return { data: [], count: 0 };
-        }
+         const { data: lessons } = await supabase
+           .from('Lesson')
+           .select('id')
+           .eq('classId', classId);
+         if (lessons && lessons.length > 0) {
+            const lessonIdsFromClass = lessons.map(lesson => lesson.id);
+             // Si ya teníamos filtro por asignatura, interseccionar
+             if (filterLessonIds) {
+                 filterLessonIds = filterLessonIds.filter(id => lessonIdsFromClass.includes(id));
+                 if (filterLessonIds.length === 0) return { data: [], count: 0 };
+             } else {
+                 filterLessonIds = lessonIdsFromClass;
+             }
+         } else {
+           return { data: [], count: 0 }; // No hay lecciones para esa clase
+         }
       }
 
-      // Filtrar por fecha de inicio
+      // Construir la consulta base con relaciones
+      let query = supabase
+        .from('Exam')
+        .select(`
+          id,
+          title,
+          startTime,
+          endTime,
+          lessonId,
+          lesson: Lesson (
+            id, name, teacherId, classId,
+            Subject (id, name),
+            Teacher (id, name, surname),
+            Class (id, name)
+         )
+        `, { count: 'exact' });
+
+      // Aplicar filtros de búsqueda directa
+      if (search) {
+        query = query.ilike('title', `%${search}%`);
+      }
+
+      // Aplicar filtros explícitos
+      if (lessonId) {
+        query = query.eq('lessonId', lessonId);
+      }
+      if (teacherId) {
+         // Filtrar por ID del profesor en la lección anidada
+        query = query.eq('Lesson.teacherId', teacherId);
+      }
+
+      // Aplicar filtros de IDs de lección derivados (subject/class)
+      if (filterLessonIds !== null && !lessonId) { // Aplicar solo si no hay filtro explícito de lessonId
+         query = query.in('lessonId', filterLessonIds);
+      }
+
+      // Filtrar por fecha
       if (startDate) {
         query = query.gte('startTime', startDate);
       }
-
-      // Filtrar por fecha de fin
       if (endDate) {
-        query = query.lte('endTime', endDate);
+        // Ajustar para incluir todo el día de endDate
+        const endOfDay = new Date(endDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        query = query.lte('startTime', endOfDay.toISOString()); // Usar startTime <= endOfDay
       }
 
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('startTime', { ascending: false });
+      // Paginación y orden
+      const rangeStart = (page - 1) * ITEM_PER_PAGE;
+      const rangeEnd = rangeStart + ITEM_PER_PAGE - 1;
+      query = query.range(rangeStart, rangeEnd).order('startTime', { ascending: false });
 
-      const { data, error, count } = await query;
+      // Ejecutar consulta - Debería devolver un array compatible con Exam[] ahora
+      const { data, error, count } = await query.returns<Exam[]>();
 
       if (error) {
+        console.error("Error fetching exams:", error);
         throw new Error(`Error al obtener datos de exámenes: ${error.message}`);
       }
 
-      return { 
-        data: data as Exam[], 
-        count: count || 0 
+      // Mapear solo para convertir strings de fecha a objetos Date
+      // y asegurar estructura de relaciones anidadas
+      const resultData = data.map(exam => {
+           const startTime = new Date(exam.startTime);
+           // Asegurarse que endTime no sea null antes de crear Date
+           const endTime = exam.endTime ? new Date(exam.endTime) : new Date(); // Usar new Date() como fallback si endTime debe ser Date
+
+           return {
+             ...exam,
+             startTime,
+             endTime,
+             // Asegurar que las sub-relaciones (en minúscula) null se vuelvan undefined
+             lesson: exam.lesson ? {
+                 ...exam.lesson,
+                 subject: exam.lesson.subject ?? undefined,
+                 teacher: exam.lesson.teacher ?? undefined,
+                 class: exam.lesson.class ?? undefined
+             } : undefined
+           };
+      });
+
+      return {
+        data: resultData,
+        count: count || 0
       };
     },
     {
@@ -107,42 +148,27 @@ export function useExamList(params: ExamListParams) {
 export function useCreateExam() {
   return useSupabaseMutation<CreateExamParams, { id: number }>(
     async (supabase, params) => {
-      // Opcional: Verificar permisos del usuario para esta lección
-      // const { data: { user } } = await supabase.auth.getUser();
-      // if (user?.user_metadata.role === "teacher") {
-      //   const { data: lesson, error: lessonError } = await supabase
-      //     .from('lesson')
-      //     .select('id')
-      //     .eq('id', params.lessonId)
-      //     .eq('teacherId', user.id)
-      //     .single();
-      //     
-      //   if (lessonError || !lesson) {
-      //     throw new Error("No tienes permisos para esta lección");
-      //   }
-      // }
-
-      const { data, error } = await supabase
-        .from('Exam')
-        .insert({
-          title: params.title,
-          startTime: params.startTime,
-          endTime: params.endTime,
-          lessonId: params.lessonId
-        })
-        .select('id')
-        .single();
-      
-      if (error) {
-        throw new Error(`Error al crear examen: ${error.message}`);
-      }
-      
-      return data as { id: number };
+        const { data, error } = await supabase
+          .from('Exam')
+          .insert({
+              title: params.title,
+              // CreateExamParams define startTime/endTime como string
+              startTime: params.startTime,
+              endTime: params.endTime,
+              lessonId: params.lessonId
+          })
+          .select('id')
+          .single();
+        if (error) {
+           console.error("Error creating exam:", error);
+           throw new Error(`Error al crear examen: ${error.message}`);
+        }
+        return data as { id: number };
     },
     {
       invalidateQueries: [['exam', 'list']],
-      onSuccess: () => {
-        console.log('Examen creado exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Create Exam):", error);
       }
     }
   );
@@ -155,38 +181,27 @@ export function useUpdateExam() {
   return useSupabaseMutation<UpdateExamParams, { id: number }>(
     async (supabase, params) => {
       const { id, ...examData } = params;
-      
-      // Opcional: Verificar permisos del usuario
-      // const { data: { user } } = await supabase.auth.getUser();
-      // if (user?.user_metadata.role === "teacher") {
-      //   const { data: exam, error: examError } = await supabase
-      //     .from('Exam')
-      //     .select('Lesson(teacherId)')
-      //     .eq('id', id)
-      //     .single();
-      //     
-      //   if (examError || !exam || exam.Lesson.teacherId !== user.id) {
-      //     throw new Error("No tienes permisos para modificar este examen");
-      //   }
-      // }
-      
-      const { data, error } = await supabase
-        .from('Exam')
-        .update(examData)
-        .eq('id', id)
-        .select('id')
-        .single();
-      
-      if (error) {
-        throw new Error(`Error al actualizar examen: ${error.message}`);
-      }
-      
-      return data as { id: number };
+       // UpdateExamParams define startTime/endTime como string opcionales
+        const updateData: Partial<Omit<UpdateExamParams, 'id'>> = { ...examData };
+        
+        // No se necesita conversión a ISO si ya son strings
+
+        const { data, error } = await supabase
+          .from('Exam')
+          .update(updateData)
+          .eq('id', id)
+          .select('id')
+          .single();
+         if (error) {
+           console.error("Error updating exam:", error);
+           throw new Error(`Error al actualizar examen: ${error.message}`);
+        }
+         return data as { id: number };
     },
     {
       invalidateQueries: [['exam', 'list']],
-      onSuccess: () => {
-        console.log('Examen actualizado exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Update Exam):", error);
       }
     }
   );
@@ -198,47 +213,37 @@ export function useUpdateExam() {
 export function useDeleteExam() {
   return useSupabaseMutation<{ id: number }, void>(
     async (supabase, { id }) => {
-      // Opcional: Verificar permisos del usuario
-      // const { data: { user } } = await supabase.auth.getUser();
-      // if (user?.user_metadata.role === "teacher") {
-      //   const { data: exam, error: examError } = await supabase
-      //     .from('Exam')
-      //     .select('Lesson(teacherId)')
-      //     .eq('id', id)
-      //     .single();
-      //     
-      //   if (examError || !exam || exam.Lesson.teacherId !== user.id) {
-      //     throw new Error("No tienes permisos para eliminar este examen");
-      //   }
-      // }
-      
-      // Verificar si hay calificaciones asociadas antes de eliminar (opcional)
-      // const { count, error: countError } = await supabase
-      //   .from('Grade')
-      //   .select('id', { count: 'exact', head: true })
-      //   .eq('examId', id);
-      // 
-      // if (countError) {
-      //   throw new Error(`Error al verificar calificaciones: ${countError.message}`);
-      // }
-      // 
-      // if (count && count > 0) {
-      //   throw new Error(`No se puede eliminar el examen porque tiene ${count} calificaciones asociadas`);
-      // }
-      
-      const { error } = await supabase
-        .from('Exam')
-        .delete()
-        .eq('id', id);
-      
-      if (error) {
-        throw new Error(`Error al eliminar examen: ${error.message}`);
-      }
+       // Aquí podrían ir validaciones, chequeos de permisos o RPC si se necesita verificar dependencias (Resultados)
+       /*
+        CREATE OR REPLACE FUNCTION delete_exam_if_unused(exam_id_to_delete int)
+        RETURNS void LANGUAGE plpgsql AS $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM public."Result" WHERE "examId" = exam_id_to_delete) THEN
+             RAISE EXCEPTION 'EXAM_HAS_RESULTS';
+          END IF;
+          DELETE FROM public."Exam" WHERE id = exam_id_to_delete;
+        END;
+        $$;
+       */
+        // const { error } = await supabase.rpc('delete_exam_if_unused', { exam_id_to_delete: id });
+
+        const { error } = await supabase
+          .from('Exam')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+           /* if (error.message.includes('EXAM_HAS_RESULTS')) {
+               throw new Error('EXAM_HAS_RESULTS');
+           } */
+           console.error("Error deleting exam:", error);
+           throw new Error(`Error al eliminar examen: ${error.message}`);
+        }
     },
     {
       invalidateQueries: [['exam', 'list']],
-      onSuccess: () => {
-        console.log('Examen eliminado exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Delete Exam):", error);
       }
     }
   );
