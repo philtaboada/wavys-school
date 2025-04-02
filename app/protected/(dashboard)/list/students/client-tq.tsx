@@ -12,6 +12,7 @@ import { ArrowDownNarrowWide, ListFilterPlus, Eye, CircleUser } from 'lucide-rea
 import { Student } from '@/utils/types/student';
 import Link from 'next/link';
 import Loading from '../loading';
+// import { supabaseClient } from '@/utils/supabase/supabaseClient';
 
 interface StudentClientTQProps {
   initialRole?: string;
@@ -79,6 +80,31 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
 
   // Función para renderizar cada fila
   const renderRow = (item: Student) => {
+    // const handleDelete = async () => {
+    //   try{
+    //     const response = await fetch('/api/admin/students', {
+    //       method: 'DELETE',
+    //       headers: { 'Content-Type': 'application/json' },
+    //       body: JSON.stringify({ id: item.id }),
+    //     });
+
+    //     if(!response.ok) {
+    //       throw new Error('Error al eliminar al estudiante');
+    //     }
+
+    //     //Actualiza la lista despues de eliminar
+    //     router.refresh();
+    //   } catch(error){
+    //     console.error(error);
+    //     alert('No se pudo eliminar al estudiante');
+    //   }
+    // };
+
+    // const handleEdit = () => {
+    //   //abrir el formulario para editar datos del estudiante
+    //   alert(`Editar estudiante: ${item.name}`);
+    // };
+
     return (
       <tr
         key={item.id}
@@ -103,15 +129,18 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
               </button>
             </Link>
             {userRole === "admin" && (
+            // console.log('ID del estudiante', item.id);
               <>
-                <FormContainerTQ table="student" type="update" data={item} />
+                <FormContainerTQ table="Student" type="update" id={item.id} data={item} />
                 <FormContainerTQ 
-                  table="student" 
+                  table="Student" 
                   type="delete" 
-                  id={typeof item.id === 'string' ? parseInt(item.id, 10) : item.id} 
-                />
+                  // id={typeof item.id === 'string' ? parseInt(item.id, 10) : item.id} 
+                  id={item.id}
+                  />
               </>
             )}
+            {/* console.log("ID recibido en FormContainerTQ:", id); */}
           </div>
         </td>
       </tr>

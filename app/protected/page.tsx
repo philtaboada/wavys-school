@@ -1,21 +1,26 @@
-import { createClient } from "@/utils/supabase/server";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export default async function ProtectedPage() {
   // Crear cliente de Supabase
-  const supabase = await createClient();
-  
+  const supabase = createServerComponentClient({
+    cookies: () => cookies(), // Pasar cookies como una función
+  });
+
   // Verificar si el usuario está autenticado
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   if (!user) {
     // Si no hay usuario autenticado, redirigir a inicio de sesión
     redirect("/sign-in");
   }
-  
+
   // Obtener el rol del usuario desde sus metadatos
   const role = (user.user_metadata as { role?: string })?.role;
-  
+
   if (!role) {
     // Si no tiene rol definido, mostrar error o redirigir a página por defecto
     return (
@@ -25,7 +30,7 @@ export default async function ProtectedPage() {
       </div>
     );
   }
-  
+
   // Redirigir al usuario a la ruta correspondiente según su rol
   redirect(`/protected/${role}`);
-} 
+}

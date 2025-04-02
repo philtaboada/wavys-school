@@ -1,4 +1,4 @@
-import { createClient } from "@/utils/supabase/server";
+import { createPublicClient } from "@/utils/supabase/server";
 import Image from "next/image";
 import Link from "next/link";
 import { signOutAction } from "@/app/actions";
@@ -119,7 +119,7 @@ const menuItems = [
 ];
 
 const Menu = async () => {
-  const supabase = await createClient();
+  const supabase = await createPublicClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   const role = user?.user_metadata.role as string;

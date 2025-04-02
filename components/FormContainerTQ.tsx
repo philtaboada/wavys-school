@@ -10,7 +10,8 @@ import AttendanceFormTQ from "@/components/forms/AttendanceFormTQ";
 import TeacherFormTQ from "@/components/forms/TeacherFormTQ";
 import StudentFormTQ from "@/components/forms/StudentFormTQ";
 import AssignmentFormTQ from "@/components/forms/AssignmentFormTQ";
-import { createClient } from "@/utils/supabase/client";
+import { supabaseClient } from "@/utils/supabase/supabaseClient";
+import { useUpdateStudent } from "@/utils/queries/studentQueries";
 import { useDeleteAttendance } from "@/utils/queries/attendanceQueries";
 import { useDeleteTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
 import { useDeleteStudent } from "@/utils/queries/studentQueries";
@@ -18,7 +19,10 @@ import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CircleFadingPlus, Pencil, Trash } from "lucide-react";
-import { Teacher, Student, Assignment, Exam } from "@/utils/types";
+import { Teacher } from "@/utils/types/teacher";
+import { Student } from "@/utils/types/student";
+import { Assignment } from "@/utils/types/assignment";
+import { Exam } from "@/utils/types/exam";
 import { Parent } from "@/utils/types/parent";
 import ParentsForm from "./forms/ParentsForm";
 import { useDeleteParent } from "@/utils/queries/parentQueries";
@@ -52,7 +56,7 @@ interface Class {
 interface FormContainerTQProps {
   table: string; // "attendance" | "teacher" | "student" | "assignment" | "grades" | "exams" etc.
   type: "create" | "update" | "delete";
-  id?: number;
+  id?: string;
   data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | Subject | undefined;
 }
 
@@ -78,13 +82,14 @@ export default function FormContainerTQ({
   const deleteStudentMutation = useDeleteStudent();
   const deleteAssignmentMutation = useDeleteAssignment();
   const deleteParentMutation = useDeleteParent();
+  const updateStudentMutation = useUpdateStudent();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
   const fetchRelatedData = async () => {
     setIsLoading(true);
     try {
-      const supabase = createClient();
+      const supabase = supabaseClient;
       
       if (table === "attendance") {
         // Estudiantes
@@ -188,15 +193,44 @@ export default function FormContainerTQ({
     fetchRelatedData();
   };
 
+  const handleEdit = (updatedData: Student) => {
+  console.log("handleEdit ejecutado - Datos actualizados:", updatedData);
+
+  if (!id) {
+    toast.error('ID no válido para actualizar el registro.');
+    return;
+  }
+
+  const confirmed = window.confirm("¿Estás seguro de que deseas actualizar este registro?");
+  if (!confirmed) return;
+
+  if (table === "Student") {
+    const { id: _, ...dataWithoutId } = updateData;
+    updateStudentMutation.mutate({ id, ...dataWithoutId }, {
+      onSuccess: () => {
+        toast.success("Estudiante actualizado correctamente");
+        router.refresh(); // Refrescar la vista después de actualizar
+      },
+      onError: (error) => {
+        toast.error(`Error al actualizar estudiante: ${error.message}`);
+      }
+    });
+  }
+};
+
   // Manejar la eliminación
   const handleDelete = () => {
-    //if (!id) return;
+    console.log("handleDelete ejecutado ID:", id);
+    if (!id) {
+      toast.error('ID no valido para eliminar el registro.');
+      return;
+    }
     
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro?");
     if (!confirmed) return;
     
     if (table === "attendance") {
-      deleteAttendanceMutation.mutate({ id }, {
+      deleteAttendanceMutation.mutate({ id: id.toString() }, {
         onSuccess: () => {
           toast.success("Registro eliminado correctamente");
           router.refresh();
@@ -216,7 +250,11 @@ export default function FormContainerTQ({
         }
       });
     } else if (table === "teacher") {
-      deleteTeacherMutation.mutate({ id: id.toString() }, {
+      if (!id) {
+        toast.error("ID no válido para eliminar el profesor.");
+        return;
+      }
+      deleteTeacherMutation.mutate({ id }, {
         onSuccess: () => {
           toast.success("Profesor eliminado correctamente");
           router.refresh();
@@ -225,8 +263,8 @@ export default function FormContainerTQ({
           toast.error(`Error al eliminar profesor: ${error.message}`);
         }
       });
-    } else if (table === "student") {
-      deleteStudentMutation.mutate({ id: id.toString() }, {
+    } else if (table === "Student") {
+      deleteStudentMutation.mutate({ id }, { // id: id.toString()
         onSuccess: () => {
           toast.success("Estudiante eliminado correctamente");
           router.refresh();
@@ -235,6 +273,7 @@ export default function FormContainerTQ({
           toast.error(`Error al eliminar estudiante: ${error.message}`);
         }
       });
+      
     } else if (table === "parent") {
       deleteParentMutation.mutate({ id: id.toString() }, {
         onSuccess: () => {

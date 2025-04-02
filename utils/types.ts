@@ -43,6 +43,29 @@ export interface Teacher {
   address?: string;
   img?: string;
   username?: string;
-  subjects?: Array<{name: string}>;
+  subjects?: Array<{ name: string }>;
   [key: string]: any;
-} 
+}
+
+//TODO: Prueba de interfaces con students
+export type Student = {
+  id: string;
+  username: string;
+  name: string;
+  surname: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  img?: string;
+  imgPath?: string;
+  bloodType?: string;
+  sex?: string;
+  birthday?: string;
+  gradeId: number;
+  classId: number;
+  parentId?: string;
+  Grade?: {
+    id: number;
+    name: string;
+  };
+};

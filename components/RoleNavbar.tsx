@@ -1,8 +1,8 @@
 'use server'
-import { createClient } from "@/utils/supabase/server";
+import { createPublicClient } from "@/utils/supabase/server";
 
 const RoleNavbar = async () => {
-  const supabase = await createClient();
+  const supabase = await createPublicClient();
   const { data: { user } } = await supabase.auth.getUser();
   return (
     <div className="flex flex-col">
