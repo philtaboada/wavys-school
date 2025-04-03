@@ -7,7 +7,6 @@ import { Html5QrcodeScanner } from "html5-qrcode";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
-// Definición de tipos
 type SupabaseError = {
   message: string;
   code?: string;
@@ -15,11 +14,6 @@ type SupabaseError = {
   hint?: string;
 };
 
-type CustomError = {
-  message: string;
-};
-
-// Definición mejorada del tipo Html5QrcodeScanner
 type Html5QrcodeScannerType = {
   clear: () => Promise<void>;
   render: (
@@ -28,7 +22,6 @@ type Html5QrcodeScannerType = {
   ) => void;
 };
 
-// Enum para categorizar errores
 enum ErrorType {
   DATABASE = "DATABASE",
   STUDENT_NOT_FOUND = "STUDENT_NOT_FOUND",
@@ -43,23 +36,25 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-interface Lesson {
+interface Subject {
   id: string;
   name: string;
 }
 
-interface Attendance {
-  studentId: string;
-  lessonId: string;
-  date: string;
-  present: boolean;
+interface Lesson {
+  id: string;
+  name: string;
+  subjectId: string;
 }
 
 const QRScanner: React.FC = () => {
-  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [filteredLessons, setFilteredLessons] = useState<Lesson[]>([]);
+  const [subjectId, setSubjectId] = useState<string | null>(null);
   const [lessonId, setLessonId] = useState<string | null>(null);
   const [scanning, setScanning] = useState<boolean>(false);
-  const [loadingLessons, setLoadingLessons] = useState<boolean>(true);
+  const [loadingSubjects, setLoadingSubjects] = useState<boolean>(true);
+  const [loadingLessons, setLoadingLessons] = useState<boolean>(false);
   const [errorLoading, setErrorLoading] = useState<string | null>(null);
   const [scanStatus, setScanStatus] = useState<string>("");
   const [lastScannedId, setLastScannedId] = useState<string | null>(null);
@@ -69,10 +64,8 @@ const QRScanner: React.FC = () => {
     Array<{ id: string; success: boolean; message: string; timestamp: Date }>
   >([]);
   const scannerRef = useRef<Html5QrcodeScannerType | null>(null);
-  const scannerDivRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
-  // Función para manejar errores de forma centralizada
   const handleError = (error: any, type: ErrorType = ErrorType.UNKNOWN) => {
     let errorMessage = "Error desconocido";
 
@@ -82,24 +75,21 @@ const QRScanner: React.FC = () => {
       errorMessage = error.message;
     }
 
-    // Personalizar mensajes según el tipo de error
     switch (type) {
       case ErrorType.STUDENT_NOT_FOUND:
-        errorMessage =
-          "Estudiante no encontrado. Verifica que el código QR sea válido.";
+        errorMessage = "Estudiante no encontrado. Verifica el código QR.";
         break;
       case ErrorType.ALREADY_REGISTERED:
-        errorMessage =
-          "Este estudiante ya registró su asistencia hoy para esta lección.";
+        errorMessage = "Asistencia ya registrada hoy para esta lección.";
         break;
       case ErrorType.DATABASE:
         errorMessage = `Error en la base de datos: ${errorMessage}`;
         break;
       case ErrorType.NETWORK:
-        errorMessage = "Error de conexión. Verifica tu conexión a Internet.";
+        errorMessage = "Error de conexión. Verifica tu Internet.";
         break;
       case ErrorType.CAMERA:
-        errorMessage = "Error de acceso a la cámara. Verifica los permisos.";
+        errorMessage = "Error de acceso a la cámara. Verifica permisos.";
         break;
     }
 
@@ -107,11 +97,9 @@ const QRScanner: React.FC = () => {
     console.error(`[${type}] Error:`, errorMessage);
     toast.error(errorMessage);
     setScanStatus(`Error: ${errorMessage}`);
-
     return errorMessage;
   };
 
-  // Función mejorada para verificar asistencia existente
   const checkExistingAttendance = async (
     studentId: string,
     lessonId: string
@@ -126,17 +114,14 @@ const QRScanner: React.FC = () => {
         .gte("date", `${today}T00:00:00`)
         .lte("date", `${today}T23:59:59`);
 
-      if (error) {
-        throw { message: error.message, type: ErrorType.DATABASE };
-      }
+      if (error) throw { message: error.message, type: ErrorType.DATABASE };
       return !!data?.length;
     } catch (error: any) {
-      const errorMessage = handleError(error, error.type || ErrorType.DATABASE);
+      handleError(error, error.type || ErrorType.DATABASE);
       return false;
     }
   };
 
-  // Función para verificar si un estudiante existe
   const checkStudentExists = async (studentId: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase
@@ -145,14 +130,8 @@ const QRScanner: React.FC = () => {
         .eq("id", studentId)
         .single();
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          // Error específico cuando no se encuentra un registro
-          return false;
-        }
-        throw { message: error.message, type: ErrorType.DATABASE };
-      }
-
+      if (error?.code === "PGRST116") return false;
+      if (error) throw { message: error.message, type: ErrorType.DATABASE };
       return !!data;
     } catch (error: any) {
       handleError(error, error.type || ErrorType.DATABASE);
@@ -160,7 +139,6 @@ const QRScanner: React.FC = () => {
     }
   };
 
-  // Función para registrar asistencia
   const registerAttendance = async (
     studentId: string,
     lessonId: string
@@ -173,10 +151,7 @@ const QRScanner: React.FC = () => {
         present: true,
       });
 
-      if (error) {
-        throw { message: error.message, type: ErrorType.DATABASE };
-      }
-
+      if (error) throw { message: error.message, type: ErrorType.DATABASE };
       return true;
     } catch (error: any) {
       handleError(error, error.type || ErrorType.DATABASE);
@@ -184,7 +159,6 @@ const QRScanner: React.FC = () => {
     }
   };
 
-  // Función para limpiar el scanner de forma segura
   const clearScanner = async () => {
     if (scannerRef.current) {
       try {
@@ -194,63 +168,90 @@ const QRScanner: React.FC = () => {
       }
       scannerRef.current = null;
     }
+    setIsProcessing(false);
   };
 
-  // Función para reiniciar el estado de error
   const resetError = () => {
     setErrorType(null);
     setScanStatus("");
   };
 
+  const fetchLessonsBySubject = async (subjectId: string) => {
+    setLoadingLessons(true);
+    try {
+      const { data, error } = await supabase
+        .from("Lesson")
+        .select("*")
+        .eq("subjectId", subjectId);
+
+      if (error) throw error;
+      setFilteredLessons(data || []);
+    } catch (error) {
+      const err = error as SupabaseError;
+      console.error("Error al cargar lecciones:", err.message);
+      toast.error("Error al cargar lecciones");
+    } finally {
+      setLoadingLessons(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLessons = async () => {
-      setLoadingLessons(true);
-      setErrorLoading(null);
+    const fetchSubjects = async () => {
+      setLoadingSubjects(true);
       try {
-        const { data, error } = await supabase.from("Lesson").select("*");
+        const { data, error } = await supabase.from("Subject").select("*");
         if (error) throw error;
-        setLessons(data || []);
+        setSubjects(data || []);
       } catch (error) {
         const err = error as SupabaseError;
-        console.error("Error al cargar lecciones:", err.message);
-        setErrorLoading("Error al cargar las lecciones");
-        toast.error(err.message || "Error al cargar lecciones");
+        console.error("Error al cargar materias:", err.message);
+        toast.error("Error al cargar materias");
       } finally {
-        setLoadingLessons(false);
+        setLoadingSubjects(false);
       }
     };
 
-    fetchLessons();
+    fetchSubjects();
   }, []);
 
   useEffect(() => {
-    // Si no estamos escaneando o no hay lección seleccionada, limpiamos el scanner
+    if (subjectId) {
+      fetchLessonsBySubject(subjectId);
+      setLessonId(null);
+      setScanning(false);
+      clearScanner();
+    } else {
+      setFilteredLessons([]);
+    }
+  }, [subjectId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (isProcessing) {
+        setIsProcessing(false);
+        toast.warn("Procesamiento tardó demasiado. Intenta nuevamente.");
+      }
+    }, 10000);
+
+    return () => clearTimeout(timer);
+  }, [isProcessing]);
+
+  useEffect(() => {
     if (!scanning || !lessonId) {
       clearScanner();
       return;
     }
 
-    // No inicializamos un nuevo scanner si ya hay uno o si estamos procesando
     if (scannerRef.current || isProcessing) return;
 
-    // Inicializamos el scanner
     const scanner = new Html5QrcodeScanner(
       "reader",
-      {
-        fps: 20,
-        qrbox: 250,
-        rememberLastUsedCamera: true,
-      },
+      { fps: 10, qrbox: 250, rememberLastUsedCamera: true },
       false
     ) as unknown as Html5QrcodeScannerType;
 
     const handleScan = async (decodedText: string) => {
-      // Evitamos procesamiento duplicado
-      if (isProcessing) {
-        return;
-      }
-
-      // Evitamos escanear el mismo QR consecutivamente
+      if (isProcessing || !scannerRef.current) return;
       if (lastScannedId === decodedText) {
         toast.info("Código ya escaneado. Intenta con otro estudiante.");
         return;
@@ -261,7 +262,6 @@ const QRScanner: React.FC = () => {
       resetError();
 
       try {
-        // Verificar formato de ID
         if (!decodedText.match(/^[A-Za-z0-9-]+$/)) {
           throw {
             message: "Formato de código QR inválido",
@@ -269,39 +269,30 @@ const QRScanner: React.FC = () => {
           };
         }
 
-        // Verificar estudiante
         const studentExists = await checkStudentExists(decodedText);
         if (!studentExists) {
           throw {
-            message: "Estudiante no registrado en el sistema",
+            message: "Estudiante no registrado",
             type: ErrorType.STUDENT_NOT_FOUND,
           };
         }
 
-        // Verificar asistencia existente
         const alreadyRegistered = await checkExistingAttendance(
           decodedText,
           lessonId
         );
-
         if (alreadyRegistered) {
           throw {
-            message: "El estudiante ya tiene asistencia registrada hoy",
+            message: "Asistencia ya registrada hoy",
             type: ErrorType.ALREADY_REGISTERED,
           };
         }
 
-        // Registrar asistencia
         const success = await registerAttendance(decodedText, lessonId);
-
         if (!success) {
-          throw {
-            message: "Error al registrar asistencia",
-            type: ErrorType.DATABASE,
-          };
+          throw { message: "Error al registrar", type: ErrorType.DATABASE };
         }
 
-        // Actualizar historial de escaneos
         setScanHistory((prev) => [
           {
             id: decodedText,
@@ -309,23 +300,23 @@ const QRScanner: React.FC = () => {
             message: "Asistencia registrada",
             timestamp: new Date(),
           },
-          ...prev.slice(0, 9), // Mantener solo los últimos 10 registros
+          ...prev.slice(0, 9),
         ]);
 
         setLastScannedId(decodedText);
-        setScanStatus("✅ Asistencia registrada correctamente");
+        setScanStatus("✅ Asistencia registrada");
 
+        const currentSubject = subjects.find((s) => s.id === subjectId);
         toast.success(
           <div>
             <p className="font-bold">Asistencia registrada</p>
             <p>Estudiante: {decodedText}</p>
-            <p>Lección: {lessons.find((l) => l.id === lessonId)?.name}</p>
+            <p>Materia: {currentSubject?.name}</p>
             <p>Fecha: {new Date().toLocaleString()}</p>
           </div>,
           { autoClose: 5000 }
         );
       } catch (error: any) {
-        // Actualizar historial de escaneos con error
         setScanHistory((prev) => [
           {
             id: decodedText,
@@ -335,22 +326,14 @@ const QRScanner: React.FC = () => {
           },
           ...prev.slice(0, 9),
         ]);
-
         handleError(error, error.type);
       } finally {
-        setTimeout(() => {
-          setIsProcessing(false);
-          // No limpiamos el estado de error aquí para que el usuario pueda ver el mensaje
-        }, 2000);
+        setIsProcessing(false);
       }
     };
 
     scanner.render(handleScan, (errorMessage) => {
-      // Filtramos mensajes de error comunes de la cámara buscando QR
       if (!errorMessage.includes("NotFoundException")) {
-        console.log("Error de escaneo:", errorMessage);
-
-        // Manejar específicamente errores de cámara
         if (
           errorMessage.includes("NotAllowedError") ||
           errorMessage.includes("NotFoundError")
@@ -365,33 +348,33 @@ const QRScanner: React.FC = () => {
     scannerRef.current = scanner;
     setScanStatus("Escáner listo - Mostrando cámara");
 
-    // Limpieza al desmontar
     return () => {
       clearScanner();
     };
-  }, [scanning, lessonId, lessons, isProcessing]);
+  }, [scanning, lessonId, subjectId, subjects, isProcessing]);
 
-  // Efecto específico para manejar el cambio de lastScannedId
   useEffect(() => {
-    // Reiniciar el lastScannedId después de un tiempo
     if (lastScannedId) {
-      const timer = setTimeout(() => {
-        setLastScannedId(null);
-      }, 5000); 
-
+      const timer = setTimeout(() => setLastScannedId(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [lastScannedId]);
 
-  // Función para obtener clase CSS según tipo de error
   const getStatusClass = () => {
-    if (errorType) {
-      return "p-2 bg-red-50 text-red-700 rounded text-center";
-    }
-    if (scanStatus.includes("registrada correctamente")) {
+    if (errorType) return "p-2 bg-red-50 text-red-700 rounded text-center";
+    if (scanStatus.includes("registrada"))
       return "p-2 bg-green-50 text-green-700 rounded text-center";
-    }
     return "p-2 bg-blue-50 text-blue-700 rounded text-center";
+  };
+
+  const handleSubjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSubjectId(e.target.value);
+  };
+
+  const handleLessonChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setLessonId(e.target.value);
+    setScanning(true);
+    resetError();
   };
 
   return (
@@ -400,10 +383,10 @@ const QRScanner: React.FC = () => {
         Registro de Asistencia por QR
       </h2>
 
-      {loadingLessons ? (
+      {loadingSubjects ? (
         <div className="flex flex-col items-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="mt-2">Cargando lecciones...</p>
+          <p className="mt-2">Cargando materias...</p>
         </div>
       ) : errorLoading ? (
         <div className="text-center p-4 bg-red-50 text-red-600 rounded-lg">
@@ -415,45 +398,73 @@ const QRScanner: React.FC = () => {
             Reintentar
           </button>
         </div>
-      ) : lessons.length > 0 ? (
+      ) : subjects.length > 0 ? (
         <>
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">
-              Selecciona una lección
+              Selecciona una materia
             </label>
             <select
               className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
-              onChange={(e) => {
-                setLessonId(e.target.value);
-                setScanning(true);
-                resetError();
-              }}
-              value={lessonId || ""}
+              onChange={handleSubjectChange}
+              value={subjectId || ""}
               disabled={isProcessing}
             >
               <option value="" disabled>
-                Selecciona una lección
+                Selecciona una materia
               </option>
-              {lessons.map((lesson) => (
-                <option key={lesson.id} value={lesson.id}>
-                  {lesson.name}
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.name}
                 </option>
               ))}
             </select>
           </div>
 
-          {scanning && (
+          {subjectId && (
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">
+                Selecciona una lección
+              </label>
+              {loadingLessons ? (
+                <div className="flex items-center py-2">
+                  <div className="animate-spin mr-2 h-4 w-4 border-b-2 border-blue-500"></div>
+                  <p className="text-sm text-gray-500">Cargando lecciones...</p>
+                </div>
+              ) : filteredLessons.length > 0 ? (
+                <select
+                  className="w-full p-2 border rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  onChange={handleLessonChange}
+                  value={lessonId || ""}
+                  disabled={isProcessing}
+                >
+                  <option value="" disabled>
+                    Selecciona una lección
+                  </option>
+                  {filteredLessons.map((lesson) => (
+                    <option key={lesson.id} value={lesson.id}>
+                      {lesson.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="p-2 bg-yellow-50 text-yellow-700 rounded text-center text-sm">
+                  No hay lecciones disponibles para esta materia
+                </div>
+              )}
+            </div>
+          )}
+
+          {scanning && lessonId && (
             <div className="space-y-3">
               <div className={getStatusClass()}>
                 {scanStatus || "Acerca el código QR a la cámara"}
               </div>
               <div
                 id="reader"
-                ref={scannerDivRef}
                 className="border-2 border-dashed border-gray-300 rounded-lg"
               ></div>
 
-              {/* Botones de acción */}
               <div className="flex space-x-2">
                 <button
                   onClick={() => {
@@ -471,7 +482,6 @@ const QRScanner: React.FC = () => {
                   <button
                     onClick={() => {
                       resetError();
-                      // Reiniciar el escáner si hay un error
                       clearScanner();
                       setScanning(true);
                     }}
@@ -482,7 +492,17 @@ const QRScanner: React.FC = () => {
                 )}
               </div>
 
-              {/* Historial de escaneos recientes */}
+              <div className="p-2 bg-gray-50 rounded border border-gray-200 text-sm">
+                <p>
+                  <span className="font-medium">Materia:</span>{" "}
+                  {subjects.find((s) => s.id === subjectId)?.name}
+                </p>
+                <p>
+                  <span className="font-medium">Lección:</span>{" "}
+                  {filteredLessons.find((l) => l.id === lessonId)?.name}
+                </p>
+              </div>
+
               {scanHistory.length > 0 && (
                 <div className="mt-4">
                   <h3 className="text-sm font-medium text-gray-700 mb-2">
@@ -492,7 +512,9 @@ const QRScanner: React.FC = () => {
                     {scanHistory.map((scan, index) => (
                       <div
                         key={index}
-                        className={`py-1 ${index > 0 ? "border-t" : ""} ${scan.success ? "text-green-700" : "text-red-700"}`}
+                        className={`py-1 ${index > 0 ? "border-t" : ""} ${
+                          scan.success ? "text-green-700" : "text-red-700"
+                        }`}
                       >
                         <span className="font-medium">{scan.id}</span>:{" "}
                         {scan.message}
@@ -509,7 +531,7 @@ const QRScanner: React.FC = () => {
         </>
       ) : (
         <div className="text-center p-4 bg-gray-50 text-gray-600 rounded-lg">
-          <p>No hay lecciones disponibles</p>
+          <p>No hay materias disponibles</p>
           <button
             onClick={() => window.location.reload()}
             className="mt-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
