@@ -91,53 +91,68 @@ const TeacherFormTQ = ({
 
   const onSubmit = handleSubmit((formData) => {
     setCustomError(null);
+    console.log('Formulario de datos antes del envío:', formData);
+
+    // Validar los campos requeridos
+    if (!formData.username || !formData.email || !formData.name || !formData.surname) {
+      setCustomError("Complete todos los campos requeridos");
+      return;
+    }
 
     // Para la creación, convertimos los IDs de string a number
-    const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+    // const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+
+    // TODO: Para la creación, convierte las ID de sujeto de cadena a número y filtra valores no válidos
+    // const numericSubjects = formData.subjects
+    //   ?.filter(id => id && !isNaN(parseInt(id, 10)))
+    //   .map(id => parseInt(id, 10)) || [];
+    
+    // Preparar los datos del profesor
+    const teacherData = {
+      username: formData.username.trim(),
+      name: formData.name.trim(),
+      surname: formData.surname.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone?.trim() || undefined,
+      address: formData.address?.trim() || "",
+      bloodType: formData.bloodType?.trim() || "",
+      sex: formData.sex || "",
+      birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
+      subjects: formData.subjects?.filter(id => id && !isNaN(parseInt(id, 10))).map(id => parseInt(id, 10)) || []
+      // img: img?.url || null,
+      // imgPath: img?.path || null
+    };
 
     if (type === "create") {
+      if (!formData.password) {
+        setCustomError("La contraseña es obligatoria");
+        return;
+      }
+
+      console.log('Enviando datos para crear profesor:', {...teacherData, password: '***'});
+
       createMutation.mutate({
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password || "",
-        phone: formData.phone,
-        address: formData.address || "",
-        bloodType: formData.bloodType || "",
-        sex: formData.sex || "",
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
-        subjects: numericSubjects,
-        img: img?.url,
-        imgPath: img?.path
+        ...teacherData,
+        password: formData.password
       }, {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          console.log('Profesor creado con ID:', data.id);
           toast.success("Profesor creado correctamente");
           reset();
           setOpen(false);
           router.refresh();
         },
         onError: (error) => {
+          console.error('Error al crear el profesor:', error);
           setCustomError(error.message);
           toast.error("Error al crear el profesor");
         }
       });
     } else if (formData.id) {
       updateMutation.mutate({
+        ...teacherData,
         id: formData.id,
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password, // Si es undefined, no se actualizará
-        phone: formData.phone,
-        address: formData.address,
-        bloodType: formData.bloodType,
-        sex: formData.sex,
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
-        subjects: numericSubjects,
-        img: img?.url,
-        imgPath: img?.path
+        password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
       }, {
         onSuccess: () => {
           toast.success("Profesor actualizado correctamente");
@@ -145,6 +160,7 @@ const TeacherFormTQ = ({
           router.refresh();
         },
         onError: (error) => {
+          console.error('Error al actualizar el profesor:', error);
           setCustomError(error.message);
           toast.error("Error al actualizar el profesor");
         }
