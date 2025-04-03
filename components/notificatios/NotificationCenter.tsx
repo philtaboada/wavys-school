@@ -1,5 +1,5 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Notification } from '@/types/notifications';
 
 interface NotificationCenterProps {
@@ -55,15 +55,15 @@ const NotificationCenter = ({
   };
 
   return (
-    <div className="absolute right-0 top-9 z-50">
+    <div className="fixed inset-0 lg:absolute lg:inset-auto lg:right-0 lg:top-9 z-50">
       <div
         className="fixed inset-0 bg-black/20"
         onClick={onClose}
       />
 
-      <div className="relative">
+      <div className="relative h-[100dvh] lg:h-auto">
         <div
-          className="relative bg-white dark:bg-gray-800 w-[500px] shadow-2xl rounded-xl h-[600px] overflow-hidden flex flex-col transform transition-all duration-300 ease-out origin-top"
+          className="relative bg-white dark:bg-gray-800 w-screen lg:w-[500px] shadow-2xl lg:rounded-xl h-full lg:h-[600px] overflow-hidden flex flex-col transform transition-all duration-300 ease-out origin-top"
           style={{
             transform: isVisible ? 'scaleY(1)' : 'scaleY(0)',
           }}
@@ -116,7 +116,7 @@ const NotificationCenter = ({
                   onMarkAsRead(unreadIds);
                   setActiveTab('all');
                 }}
-                className="ml-auto px-3 py-1.5 text-xs underline text-gray-700 dark:text-gray-100 hover:text-gray-600 dark:hover:text-gray-400 rounded-full transition-colors cursor-pointer"
+                className="ml-auto px-3 py-1.5 text-[10px] lg:text-xs underline text-gray-700 dark:text-gray-100 hover:text-gray-600 dark:hover:text-gray-400 rounded-full transition-colors cursor-pointer hidden lg:block"
               >
                 Marcar todas como leídas
               </button>
@@ -134,7 +134,7 @@ const NotificationCenter = ({
             >
               <div className="flex gap-4">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-lg">
+                  <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-sm lg:text-base">
                     {getTypeIcon(notification.type)}
                   </div>
                   {!notification.read && activeTab === 'all' && (
@@ -145,20 +145,20 @@ const NotificationCenter = ({
                 <div className="flex-1">
                   <div className="flex justify-between items-start gap-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <h3 className="font-semibold text-sm lg:text-base text-gray-900 dark:text-white flex items-center gap-2">
                         {notification.title}
                         {!notification.read && activeTab === 'all' && (
-                          <span className="text-xs font-normal text-gray-600 dark:text-gray-400 bg-gray-300 dark:bg-gray-100 px-2 py-0.5 rounded-full">
+                          <span className="hidden lg:inline-block text-xs font-normal text-gray-600 dark:text-gray-400 bg-gray-300 dark:bg-gray-100 px-2 py-0.5 rounded-full">
                             No leído
                           </span>
                         )}
                       </h3>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    <span className="text-[10px] lg:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {notification.time}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
+                  <p className="text-xs lg:text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
                     {notification.message}
                   </p>
                 </div>
