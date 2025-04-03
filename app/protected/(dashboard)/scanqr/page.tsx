@@ -237,7 +237,7 @@ const QRScanner: React.FC = () => {
     const scanner = new Html5QrcodeScanner(
       "reader",
       {
-        fps: 10,
+        fps: 20,
         qrbox: 250,
         rememberLastUsedCamera: true,
       },
@@ -377,7 +377,7 @@ const QRScanner: React.FC = () => {
     if (lastScannedId) {
       const timer = setTimeout(() => {
         setLastScannedId(null);
-      }, 5000); // 5 segundos de cooldown
+      }, 5000); 
 
       return () => clearTimeout(timer);
     }
