@@ -56,23 +56,23 @@ const TeacherFormTQ = ({
     formState: { errors },
     reset
   } = useForm<TeacherSchema>(
-    //{
-    //  resolver: zodResolver(teacherSchema),
-    //  defaultValues: {
-    //    id: data?.id ? String(data.id) : undefined,
-    //    username: data?.username || "",
-    //    name: data?.name || "",
-    //    surname: data?.surname || "",
-    //    email: data?.email || "",
-    //    password: type === "update" ? undefined : "",
-    //    phone: data?.phone || "",
-    //    address: data?.address || "",
-    //    bloodType: data?.bloodType || "",
-    //    sex: data?.sex as "MALE" | "FEMALE" | undefined,
-    //    birthday: data?.birthday ? new Date(data.birthday) : undefined,
-    //    subjects: isTeacher(data) && data.subjects ? data.subjects.map(s => String(s.id)) : []
-    //  }
-    //}
+    {
+      resolver: zodResolver(teacherSchema),
+      defaultValues: {
+        id: data?.id ? String(data.id) : undefined,
+        username: data?.username || "",
+        name: data?.name || "",
+        surname: data?.surname || "",
+        email: data?.email || "",
+        password: type === "update" ? undefined : "",
+        phone: data?.phone || "",
+        address: data?.address || "",
+        bloodType: data?.bloodType || "",
+        sex: data?.sex as "MALE" | "FEMALE" | undefined,
+        birthday: data?.birthday ? new Date(data.birthday) : undefined,
+        subjects: isTeacher(data) && data.subjects ? data.subjects.map(s => String(s.id)) : []
+      }
+    }
   );
 
   // Inicializar estado de imagen con la información de la imagen existente
