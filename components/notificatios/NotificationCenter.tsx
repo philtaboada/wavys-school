@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { Notification } from '@/types/notifications';
+import Link from "next/link";
 import NotificationCard from './NotificationCard';
 
 interface NotificationCenterProps {
@@ -52,7 +53,7 @@ const NotificationCenter = ({
 
       <div className="relative h-[100dvh] lg:h-auto">
         <div
-          className="relative bg-white dark:bg-gray-800 w-screen lg:w-[500px] shadow-2xl lg:rounded-xl h-full lg:h-[600px] overflow-hidden flex flex-col transform transition-all duration-300 ease-out origin-top"
+          className="relative bg-white dark:bg-gray-800 w-screen lg:w-[500px] shadow-2xl lg:rounded-xl h-full lg:h-[600px] overflow-y-auto flex flex-col transform transition-all duration-300 ease-out origin-top"
           style={{
             transform: isVisible ? 'scaleY(1)' : 'scaleY(0)',
           }}
@@ -132,17 +133,14 @@ const NotificationCenter = ({
           </div>
 
           <div className="p-4 flex justify-center border-t bg-white dark:bg-gray-800 shadow-inner rounded-bl-3xl">
-            <button
-              onClick={() => {
-                // TODO: Add navigation to notifications page
-                console.log('ir a donde estaran todos los anuncios');
-              }}
+            <Link
+              href="/protected/list/announcements"
+              onClick={onClose}
               className="px-4 text-sm text-gray-600 dark:text-gray-400 underline transition-colors cursor-pointer"
             >
-              Ver Todas las Notificaciones
-            </button>
+              Ver Todos los Anuncios
+            </Link>
           </div>
-
         </div>
       </div>
     </div>
