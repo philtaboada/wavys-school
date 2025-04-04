@@ -126,9 +126,9 @@ const TeacherFormTQ = ({
       bloodType: formData.bloodType?.trim() || "",
       sex: formData.sex || "",
       birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
-      subjects: subjects
-      // img: img?.url || null,
-      // imgPath: img?.path || null
+      subjects: subjects,
+      img: img?.url || undefined,
+      imgPath: img?.path || undefined
     };
 
     console.log('Datos procesados para enviar:', teacherData);

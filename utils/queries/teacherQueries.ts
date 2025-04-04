@@ -40,6 +40,7 @@ export interface CreateTeacherParams {
   img?: string;
   imgPath?: string;
   subjects?: number[];
+  description?: string;
 }
 
 /**
@@ -417,7 +418,7 @@ export function useCreateTeacher() {
     async (supabase, params) => {
 
       //Extraer datos necesarios
-      const { subjects = [], password, ...teacherData } = params;
+      const { subjects = [], password, img, imgPath, ...teacherData } = params;
 
       // 1. Validar datos requeridos
       if (!teacherData.email || !password || !teacherData.username) {
@@ -458,7 +459,9 @@ export function useCreateTeacher() {
         .from('Teacher')
         .insert([{
           ...teacherData,
-          id: userId
+          id: userId,
+          img: img || null,
+          imgPath: imgPath || null
         }]);
 
       if (teacherError) {
