@@ -277,6 +277,14 @@ export function useDeleteTeacher() {
       if (error) {
         throw new Error(`Error al eliminar profesor: ${error.message}`);
       }
+
+      //Eliminar al usuario de autenticacion
+      const { error: authError } = await supabase.auth.admin.deleteUser(id);
+
+      if (authError) {
+        console.error(`Error al eliminar usuario de autenticación: ${authError.message}`);
+        //No lanzamos error para no revertir la eliminacion
+      }
     },
     {
       invalidateQueries: [['teacher', 'details'], ['teacher', 'list']],
