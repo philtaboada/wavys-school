@@ -3,6 +3,16 @@
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import Loading from "../loading";
+
+// Importar los tipos de SearchParams si es necesario (o definir inline)
+interface SearchParams {
+  page?: string;
+  search?: string;
+  classId?: string;
+  teacherId?: string;
+  [key: string]: string | undefined;
+}
+
 // Cargar el componente cliente de manera dinámica
 const AssignmentsClientTQ = dynamic(() => import("./client-tq"), {
   ssr: false,
@@ -16,9 +26,14 @@ const AssignmentsClientTQ = dynamic(() => import("./client-tq"), {
 interface ClientWrapperProps {
   initialRole?: string;
   initialUserId?: string;
+  searchParams?: SearchParams; // Añadir searchParams
 }
 
-export default function ClientWrapper({ initialRole, initialUserId }: ClientWrapperProps) {
+export default function ClientWrapper({ 
+  initialRole, 
+  initialUserId, 
+  searchParams 
+}: ClientWrapperProps) {
   return (
     <Suspense
       fallback={
@@ -27,7 +42,12 @@ export default function ClientWrapper({ initialRole, initialUserId }: ClientWrap
         </div>
       }
     >
-      <AssignmentsClientTQ initialRole={initialRole} initialUserId={initialUserId} />
+      {/* Pasar searchParams a AssignmentsClientTQ */}
+      <AssignmentsClientTQ 
+        initialRole={initialRole} 
+        initialUserId={initialUserId} 
+        searchParams={searchParams}
+      />
     </Suspense>
   );
 } 

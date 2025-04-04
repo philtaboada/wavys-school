@@ -3,23 +3,64 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Class, ClassListParams, ClassListResult, CreateClassParams, UpdateClassParams } from '@/utils/types/class';
+import { createClient } from '@/utils/supabase/client'; // Importar para usar en filtros
 
 /**
- * Hook para obtener la lista de clases con filtrado y paginación
+ * Hook para obtener la lista de clases con filtrado y paginación optimizado
  */
 export function useClassList(params: ClassListParams & { userRole?: string; userId?: string }) {
   const { page, search, gradeId, userRole, userId } = params;
-  
+
   return useSupabaseQuery<ClassListResult>(
     ['class', 'list', page, search, gradeId, userRole, userId],
     async (supabase) => {
-      // Construir la consulta base
+
+      // **Manejo de filtros dependientes del rol (antes de construir la query principal)**
+      // Esto es necesario porque los filtros para student/parent dependen de datos externos
+      let specificClassIds: number[] | null = null;
+
+      if (userRole && userRole !== 'admin' && userId) {
+        if (userRole === 'student') {
+          const { data: studentData } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('id', userId)
+            .single();
+          if (studentData?.classId) {
+            specificClassIds = [studentData.classId];
+          } else {
+            return { data: [], count: 0 }; // Estudiante sin clase asignada
+          }
+        } else if (userRole === 'parent') {
+          const { data: parentStudents } = await supabase
+            .from('Student')
+            .select('classId')
+            .eq('parentId', userId);
+          if (parentStudents && parentStudents.length > 0) {
+            // Filtrar nulls/undefined y obtener únicos
+            specificClassIds = Array.from(new Set(parentStudents.map(s => s.classId).filter(id => id != null))) as number[];
+            if (specificClassIds.length === 0) {
+                 return { data: [], count: 0 }; // Hijos sin clase asignada
+            }
+          } else {
+            return { data: [], count: 0 }; // Padre sin hijos
+          }
+        }
+      }
+
+      // Construir la consulta base incluyendo datos relacionados
       let query = supabase
         .from('Class')
         .select(`
-          *,
-          Grade:gradeId (id, level)
-        `, { count: 'exact' });
+          id,
+          name,
+          capacity,
+          gradeId,
+          supervisorId,
+          Grade:gradeId (id, level),
+          Supervisor:supervisorId (id, name, surname),
+          Student(count) 
+        `, { count: 'exact' }); // Contar estudiantes usando relación
 
       // Aplicar filtros de búsqueda
       if (search) {
@@ -31,92 +72,53 @@ export function useClassList(params: ClassListParams & { userRole?: string; user
         query = query.eq('gradeId', gradeId);
       }
 
-      // Filtros específicos según el rol del usuario
-      if (userRole && userRole !== 'admin' && userId) {
-        if (userRole === 'teacher') {
-          // Si el profesor es supervisor de alguna clase
-          query = query.eq('supervisorId', userId);
-        } 
-        else if (userRole === 'student') {
-          // Obtener solo la clase del estudiante
-          const { data: studentData } = await supabase
-            .from('Student')
-            .select('classId')
-            .eq('id', userId)
-            .single();
-          
-          if (studentData && studentData.classId) {
-            query = query.eq('id', studentData.classId);
-          } else {
-            return { data: [], count: 0 };
-          }
-        } 
-        else if (userRole === 'parent') {
-          // Obtener las clases de los estudiantes del padre
-          const { data: parentStudents } = await supabase
-            .from('Student')
-            .select('classId')
-            .eq('parentId', userId);
-          
-          if (parentStudents && parentStudents.length > 0) {
-            const classIds = parentStudents.map(student => student.classId);
-            query = query.in('id', classIds);
-          } else {
-            return { data: [], count: 0 };
-          }
-        }
+      // Aplicar filtro por rol de profesor supervisor
+      if (userRole === 'teacher' && userId) {
+         query = query.eq('supervisorId', userId);
       }
 
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('name');
+      // Aplicar filtro por IDs específicos (para student/parent)
+      if (specificClassIds !== null) {
+        query = query.in('id', specificClassIds);
+      }
 
-      const { data, error, count } = await query;
+      // Paginación y orden
+      const rangeStart = (page - 1) * ITEM_PER_PAGE;
+      const rangeEnd = rangeStart + ITEM_PER_PAGE - 1;
+      query = query.range(rangeStart, rangeEnd).order('name');
+
+      // Ejecutar la consulta única
+      // Usamos un tipo intermedio porque Supabase anida el count de Student
+      type ClassWithNestedCount = Omit<Class, '_count'> & {
+           Grade?: { id: number; level: number } | null;
+           Supervisor?: { id: string; name: string; surname: string } | null;
+           Student: { count: number }[]; // Supabase devuelve un array con un objeto count
+      };
+      const { data, error, count } = await query.returns<ClassWithNestedCount[]>();
 
       if (error) {
+        console.error("Error fetching classes:", error);
         throw new Error(`Error al obtener datos de clases: ${error.message}`);
       }
 
-      // Obtener conteo de estudiantes por clase
-      const result: Class[] = [];
-      
-      for (const classItem of data as Class[]) {
-        const { count: studentCount, error: countError } = await supabase
-          .from('Student')
-          .select('id', { count: 'exact', head: true })
-          .eq('classId', classItem.id);
-        
-        if (countError) {
-          throw new Error(`Error al contar estudiantes: ${countError.message}`);
+      // Mapear los resultados al tipo esperado (Class[])
+      const result: Class[] = data.map(classItem => ({
+        id: classItem.id,
+        name: classItem.name,
+        capacity: classItem.capacity,
+        gradeId: classItem.gradeId,
+        supervisorId: classItem.supervisorId,
+        Grade: classItem.Grade ?? undefined,
+        Supervisor: classItem.Supervisor ?? undefined,
+        _count: {
+          // Extraer el count del array anidado
+          students: classItem.Student[0]?.count ?? 0
         }
-        
-        // Obtener información del supervisor si existe
-        let supervisor = null;
-        if (classItem.supervisorId) {
-          const { data: supervisorData, error: supervisorError } = await supabase
-            .from('Teacher')
-            .select('id, name, surname')
-            .eq('id', classItem.supervisorId)
-            .single();
-            
-          if (!supervisorError && supervisorData) {
-            supervisor = supervisorData;
-          }
-        }
-        
-        result.push({
-          ...classItem,
-          Supervisor: supervisor ?? undefined,
-          _count: {
-            students: studentCount || 0
-          }
-        });
-      }
+      }));
 
-      return { 
-        data: result, 
-        count: count || 0 
+      return {
+        data: result,
+        count: count || 0
       };
     },
     {
@@ -137,17 +139,18 @@ export function useCreateClass() {
         .insert(params)
         .select('id')
         .single();
-      
+
       if (error) {
+        console.error("Error creating class:", error);
         throw new Error(`Error al crear clase: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
       invalidateQueries: [['class', 'list']],
-      onSuccess: () => {
-        console.log('Clase creada exitosamente');
+      onError: (error) => {
+         console.error("Mutation error (Create Class):", error);
       }
     }
   );
@@ -160,62 +163,95 @@ export function useUpdateClass() {
   return useSupabaseMutation<UpdateClassParams, { id: number }>(
     async (supabase, params) => {
       const { id, ...rest } = params;
-      
+
       const { data, error } = await supabase
         .from('Class')
         .update(rest)
         .eq('id', id)
         .select('id')
         .single();
-      
+
       if (error) {
+        console.error("Error updating class:", error);
         throw new Error(`Error al actualizar clase: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
       invalidateQueries: [['class', 'list']],
-      onSuccess: () => {
-        console.log('Clase actualizada exitosamente');
+      onError: (error) => {
+         console.error("Mutation error (Update Class):", error);
       }
     }
   );
 }
 
 /**
- * Función para eliminar una clase
+ * Función para eliminar una clase (optimizada)
  */
 export function useDeleteClass() {
   return useSupabaseMutation<{ id: number }, void>(
     async (supabase, { id }) => {
-      // Verificar si hay estudiantes asignados
+      // **Optimización: Usar RPC para verificar y eliminar en una sola transacción**
+      // Esto evita la condición de carrera donde un estudiante podría ser añadido
+      // entre la verificación y la eliminación.
+      // Requiere una función SQL en Supabase como:
+      /*
+      CREATE OR REPLACE FUNCTION delete_class_if_empty(class_id_to_delete int)
+      RETURNS void
+      LANGUAGE plpgsql
+      SECURITY DEFINER -- Importante para permisos
+      AS $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM public."Student" WHERE "classId" = class_id_to_delete) THEN
+          RAISE EXCEPTION 'Cannot delete class with ID % because it has students assigned.', class_id_to_delete;
+        ELSE
+          DELETE FROM public."Class" WHERE id = class_id_to_delete;
+        END IF;
+      END;
+      $$;
+      */
+
+      const { error } = await supabase.rpc('delete_class_if_empty', { class_id_to_delete: id });
+
+      // Manejo de error original (si no se usa RPC)
+      /*
       const { count, error: countError } = await supabase
         .from('Student')
         .select('id', { count: 'exact', head: true })
         .eq('classId', id);
-      
+
       if (countError) {
+        console.error("Error checking students before delete:", countError);
         throw new Error(`Error al verificar estudiantes: ${countError.message}`);
       }
-      
+
       if (count && count > 0) {
-        throw new Error(`No se puede eliminar la clase porque tiene ${count} estudiantes asignados`);
+        // Lanzar error específico para que el frontend pueda mostrar mensaje útil
+        throw new Error(`CLASS_HAS_STUDENTS:${count}`); // Usar un código/mensaje específico
       }
-      
+
       const { error } = await supabase
         .from('Class')
         .delete()
         .eq('id', id);
-      
+      */
+
       if (error) {
-        throw new Error(`Error al eliminar clase: ${error.message}`);
+         // Intentar parsear el mensaje de error si viene de la función RPC
+         if (error.message.includes('Cannot delete class')) {
+            throw new Error('CLASS_HAS_STUDENTS'); // Lanzar error específico
+         }
+         console.error("Error deleting class:", error);
+         throw new Error(`Error al eliminar clase: ${error.message}`);
       }
     },
     {
       invalidateQueries: [['class', 'list']],
-      onSuccess: () => {
-        console.log('Clase eliminada exitosamente');
+      onError: (error) => {
+         console.error("Mutation error (Delete Class):", error);
+         // No relanzar aquí, el error ya se lanzó desde la función de mutación
       }
     }
   );

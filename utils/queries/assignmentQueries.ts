@@ -3,17 +3,73 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Assignment, AssignmentListParams, AssignmentListResult } from '@/utils/types/assignment';
+import { createClient } from '@/utils/supabase/client'; // Importar para filtros
 
 /**
- * Hook para obtener la lista de asignaciones con filtrado y paginación
+ * Hook para obtener la lista de asignaciones con filtrado y paginación optimizado
  */
 export function useAssignmentList(params: AssignmentListParams) {
   const { page, search, classId, teacherId, userId, role } = params;
-  
+
   return useSupabaseQuery<AssignmentListResult>(
     ['assignment', 'list', page, search, classId, teacherId, role, userId],
     async (supabase) => {
-      // Construir la consulta base
+
+      let filterLessonIds: number[] | null = null;
+
+      // **Manejo de filtros dependientes (antes de construir la query principal)**
+      // Prioridad: Filtros explícitos (classId, teacherId) > Filtros de rol
+
+      if (classId) {
+        const { data: lessons } = await supabase.from('Lesson').select('id', { count: 'exact' }).eq('classId', classId);
+        filterLessonIds = lessons?.map(l => l.id) || [];
+        if (filterLessonIds.length === 0) return { data: [], count: 0 };
+      }
+
+      if (teacherId) {
+        const { data: lessons } = await supabase.from('Lesson').select('id', { count: 'exact' }).eq('teacherId', teacherId);
+        const lessonIdsFromTeacher = lessons?.map(l => l.id) || [];
+        if (filterLessonIds) { // Interseccionar si ya había filtro por clase
+          filterLessonIds = filterLessonIds.filter(id => lessonIdsFromTeacher.includes(id));
+        } else {
+          filterLessonIds = lessonIdsFromTeacher;
+        }
+        if (filterLessonIds.length === 0) return { data: [], count: 0 };
+      }
+
+      // Aplicar filtros de rol solo si no hubo filtros explícitos de clase/profesor
+      if (filterLessonIds === null && role && role !== 'admin' && userId) {
+          if (role === 'teacher') {
+              const { data: lessons } = await supabase.from('Lesson').select('id', { count: 'exact' }).eq('teacherId', userId);
+              filterLessonIds = lessons?.map(l => l.id) || [];
+              if (filterLessonIds.length === 0) return { data: [], count: 0 };
+          } else if (role === 'student') {
+              const { data: studentData } = await supabase.from('Student').select('classId').eq('id', userId).maybeSingle();
+              if (studentData?.classId) {
+                  const { data: lessons } = await supabase.from('Lesson').select('id', { count: 'exact' }).eq('classId', studentData.classId);
+                  filterLessonIds = lessons?.map(l => l.id) || [];
+                  if (filterLessonIds.length === 0) return { data: [], count: 0 };
+              } else {
+                  return { data: [], count: 0 };
+              }
+          } else if (role === 'parent') {
+              const { data: parentStudents } = await supabase.from('Student').select('classId').eq('parentId', userId);
+              if (parentStudents && parentStudents.length > 0) {
+                  const classIds = Array.from(new Set(parentStudents.map(s => s.classId).filter(id => id != null))) as number[];
+                  if (classIds.length > 0) {
+                       const { data: lessons } = await supabase.from('Lesson').select('id', { count: 'exact' }).in('classId', classIds);
+                       filterLessonIds = lessons?.map(l => l.id) || [];
+                       if (filterLessonIds.length === 0) return { data: [], count: 0 };
+                  } else {
+                       return { data: [], count: 0 };
+                  }
+              } else {
+                  return { data: [], count: 0 };
+              }
+          }
+      }
+
+      // Construir la consulta base con todas las relaciones anidadas necesarias
       let query = supabase
         .from('Assignment')
         .select(`
@@ -22,281 +78,69 @@ export function useAssignmentList(params: AssignmentListParams) {
           startDate,
           dueDate,
           lessonId,
-          Lesson:lessonId (
-            id,
-            name,
-            subjectId,
-            classId,
-            teacherId
+          lesson: Lesson (
+            id, name,
+            subject: Subject (id, name),
+            class: Class (id, name),
+            teacher: Teacher (id, name, surname)
           )
         `, { count: 'exact' });
 
-      // Aplicar filtros específicos
-      if (classId) {
-        // Obtenemos tareas donde la lección pertenece a una clase específica
-        const { data: lessonIds, error: lessonError } = await supabase
-          .from('Lesson')
-          .select('id')
-          .eq('classId', classId);
-        
-        if (!lessonError && lessonIds && lessonIds.length > 0) {
-          const ids = lessonIds.map(l => l.id);
-          query = query.in('lessonId', ids);
-        }
-      }
-
-      if (teacherId) {
-        // Obtenemos tareas donde la lección está asignada a un profesor específico
-        const { data: lessonIds, error: lessonError } = await supabase
-          .from('Lesson')
-          .select('id')
-          .eq('teacherId', teacherId);
-        
-        if (!lessonError && lessonIds && lessonIds.length > 0) {
-          const ids = lessonIds.map(l => l.id);
-          query = query.in('lessonId', ids);
-        }
-      }
-
-      // Aplicar filtros según el rol
-      if (role === "teacher" && userId) {
-        // Obtenemos tareas donde el profesor es el usuario actual
-        const { data: lessonIds, error: lessonError } = await supabase
-          .from('Lesson')
-          .select('id')
-          .eq('teacherId', userId);
-        
-        if (!lessonError && lessonIds && lessonIds.length > 0) {
-          const ids = lessonIds.map(l => l.id);
-          query = query.in('lessonId', ids);
-        } else {
-          return { data: [], count: 0 };
-        }
-      } else if (role === "student" && userId) {
-        // Obtenemos la clase del estudiante
-        const { data: studentData, error: studentError } = await supabase
-          .from('Student')
-          .select('classId')
-          .eq('id', userId)
-          .single();
-        
-        if (studentData) {
-          // Obtenemos lecciones de la clase del estudiante
-          const { data: lessonIds, error: lessonError } = await supabase
-            .from('Lesson')
-            .select('id')
-            .eq('classId', studentData.classId);
-          
-          if (!lessonError && lessonIds && lessonIds.length > 0) {
-            const ids = lessonIds.map(l => l.id);
-            query = query.in('lessonId', ids);
-          } else {
-            return { data: [], count: 0 };
-          }
-        } else {
-          return { data: [], count: 0 };
-        }
-      } else if (role === "parent" && userId) {
-        // Obtenemos los estudiantes asignados al padre
-        const { data: parentStudents, error: parentError } = await supabase
-          .from('Student')
-          .select('id, classId')
-          .eq('parentId', userId);
-        
-        if (parentStudents && parentStudents.length > 0) {
-          // Obtenemos las clases de los estudiantes
-          const classIds = parentStudents.map(student => student.classId);
-          
-          // Obtenemos lecciones de las clases de los estudiantes
-          const { data: lessonIds, error: lessonError } = await supabase
-            .from('Lesson')
-            .select('id')
-            .in('classId', classIds);
-          
-          if (!lessonError && lessonIds && lessonIds.length > 0) {
-            const ids = lessonIds.map(l => l.id);
-            query = query.in('lessonId', ids);
-          } else {
-            return { data: [], count: 0 };
-          }
-        } else {
-          return { data: [], count: 0 };
-        }
-      }
-
-      // Aplicar filtros de búsqueda
+      // Aplicar filtros de búsqueda directa
       if (search) {
-        // Buscar por título de tarea
         query = query.ilike('title', `%${search}%`);
       }
 
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('id', { ascending: false });
+      // Aplicar filtro de lessonIds si se determinó alguno
+      if (filterLessonIds !== null) {
+        query = query.in('lessonId', filterLessonIds);
+      }
+
+      // Paginación y orden
+      const rangeStart = (page - 1) * ITEM_PER_PAGE;
+      const rangeEnd = rangeStart + ITEM_PER_PAGE - 1;
+      query = query.range(rangeStart, rangeEnd).order('dueDate', { ascending: true, nullsFirst: false }); // Ordenar por fecha de entrega
 
       // Ejecutar la consulta
-      const { data: assignmentData, error, count } = await query;
+      // Definir un tipo intermedio porque Supabase devuelve fechas como string
+      type RawAssignment = Omit<Assignment, 'startDate' | 'dueDate' | 'lesson'> & {
+           startDate: string;
+           dueDate: string;
+           lesson: {
+               id: number;
+               name: string;
+               subject: { id: number; name: string } | null;
+               class: { id: number; name: string } | null;
+               teacher: { id: string; name: string; surname: string } | null;
+           } | null;
+      };
+       // Asegúrate que el tipo genérico de useSupabaseQuery coincida con lo que retorna la función
+       // En este caso, la función retorna AssignmentListResult, pero el fetch devuelve RawAssignment[]
+       // Se necesita mapear RawAssignment[] a Assignment[] y luego construir AssignmentListResult
+      const { data, error, count } = await query.returns<RawAssignment[]>();
 
       if (error) {
+        console.error("Error fetching assignments:", error);
         throw new Error(`Error al obtener datos de tareas: ${error.message}`);
       }
 
-      // Formatear los datos para la vista
-      let data: Assignment[] = [];
-      
-      if (assignmentData && assignmentData.length > 0) {
-        // Convertir los datos de Supabase al formato que espera nuestro componente
-        data = assignmentData.map(assignment => ({
-          id: assignment.id,
-          title: assignment.title,
-          startDate: assignment.startDate,
-          dueDate: assignment.dueDate,
-          lessonId: assignment.lessonId,
-          lesson: null // Inicialmente vacío, se llenará más adelante
-        }));
-        
-        // 1. Obtener todos los IDs de lecciones únicos
-        const lessonIds = assignmentData
-          .filter(assignment => assignment.lessonId)
-          .map(assignment => assignment.lessonId)
-          .filter((id, index, self) => self.indexOf(id) === index);
-        
-        // 2. Cargar información de lecciones
-        if (lessonIds.length > 0) {
-          const { data: lessonsData, error: lessonsError } = await supabase
-            .from('Lesson')
-            .select('id, name, subjectId, classId, teacherId')
-            .in('id', lessonIds);
-          
-          if (!lessonsError && lessonsData) {
-            // Crear un mapa para un acceso rápido a las lecciones por ID
-            const lessonMap = new Map();
-            lessonsData.forEach(lesson => {
-              lessonMap.set(lesson.id, {
-                id: lesson.id,
-                name: lesson.name,
-                subjectId: lesson.subjectId,
-                classId: lesson.classId,
-                teacherId: lesson.teacherId
-              });
-            });
-            
-            // 3. Cargar información de asignaturas, clases y profesores
-            const subjectIds = lessonsData
-              .filter(l => l.subjectId)
-              .map(l => l.subjectId)
-              .filter((id, index, self) => self.indexOf(id) === index);
-              
-            const classIds = lessonsData
-              .filter(l => l.classId)
-              .map(l => l.classId)
-              .filter((id, index, self) => self.indexOf(id) === index);
-              
-            const teacherIds = lessonsData
-              .filter(l => l.teacherId)
-              .map(l => l.teacherId)
-              .filter((id, index, self) => self.indexOf(id) === index);
-            
-            // Cargar asignaturas
-            if (subjectIds.length > 0) {
-              const { data: subjectsData } = await supabase
-                .from('Subject')
-                .select('id, name')
-                .in('id', subjectIds);
-              
-              if (subjectsData) {
-                const subjectMap = new Map();
-                subjectsData.forEach(subject => {
-                  subjectMap.set(subject.id, { id: subject.id, name: subject.name });
-                });
-                
-                // Asignar asignaturas a lecciones
-                lessonMap.forEach((lesson, lessonId) => {
-                  if (lesson.subjectId && subjectMap.has(lesson.subjectId)) {
-                    const lessonWithSubject = {
-                      ...lesson,
-                      subject: subjectMap.get(lesson.subjectId)
-                    };
-                    lessonMap.set(lessonId, lessonWithSubject);
-                  }
-                });
-              }
-            }
-            
-            // Cargar clases
-            if (classIds.length > 0) {
-              const { data: classesData } = await supabase
-                .from('Class')
-                .select('id, name')
-                .in('id', classIds);
-              
-              if (classesData) {
-                const classMap = new Map();
-                classesData.forEach(cls => {
-                  classMap.set(cls.id, { id: cls.id, name: cls.name });
-                });
-                
-                // Asignar clases a lecciones
-                lessonMap.forEach((lesson, lessonId) => {
-                  if (lesson.classId && classMap.has(lesson.classId)) {
-                    const lessonWithClass = {
-                      ...lesson,
-                      class: classMap.get(lesson.classId)
-                    };
-                    lessonMap.set(lessonId, lessonWithClass);
-                  }
-                });
-              }
-            }
-            
-            // Cargar profesores
-            if (teacherIds.length > 0) {
-              const { data: teachersData } = await supabase
-                .from('Teacher')
-                .select('id, name, surname')
-                .in('id', teacherIds);
-              
-              if (teachersData) {
-                const teacherMap = new Map();
-                teachersData.forEach(teacher => {
-                  teacherMap.set(teacher.id, { 
-                    id: teacher.id, 
-                    name: teacher.name,
-                    surname: teacher.surname 
-                  });
-                });
-                
-                // Asignar profesores a lecciones
-                lessonMap.forEach((lesson, lessonId) => {
-                  if (lesson.teacherId && teacherMap.has(lesson.teacherId)) {
-                    const lessonWithTeacher = {
-                      ...lesson,
-                      teacher: teacherMap.get(lesson.teacherId)
-                    };
-                    lessonMap.set(lessonId, lessonWithTeacher);
-                  }
-                });
-              }
-            }
-            
-            // 4. Asignar lecciones completas a las tareas
-            for (let i = 0; i < data.length; i++) {
-              const assignment = data[i];
-              if (assignment.lessonId && lessonMap.has(assignment.lessonId)) {
-                data[i] = {
-                  ...assignment,
-                  lesson: lessonMap.get(assignment.lessonId)
-                };
-              }
-            }
-          }
-        }
-      }
+      // Mapear para convertir fechas y asegurar estructura/tipos
+       const resultData: Assignment[] = data.map((assignment: RawAssignment) => ({
+         ...assignment,
+         startDate: new Date(assignment.startDate), // Convertir a Date
+         dueDate: new Date(assignment.dueDate), // Convertir a Date
+         // Asegurar que las sub-relaciones null se vuelvan undefined
+         lesson: assignment.lesson ? {
+             ...assignment.lesson,
+             subject: assignment.lesson.subject ?? undefined,
+             class: assignment.lesson.class ?? undefined,
+             teacher: assignment.lesson.teacher ?? undefined
+         } : undefined
+      }));
 
-      return { 
-        data: data, 
-        count: count || 0 
+      return {
+        data: resultData,
+        count: count || 0
       };
     },
     {
@@ -306,19 +150,19 @@ export function useAssignmentList(params: AssignmentListParams) {
   );
 }
 
-// Tipos para mutaciones
-type CreateAssignmentParams = {
+// Tipos para mutaciones (permitir Date o string para fechas)
+ type CreateAssignmentParams = {
   title: string;
-  startDate?: string;
-  dueDate?: string;
+  startDate?: string | Date;
+  dueDate?: string | Date;
   lessonId: number;
 };
 
 type UpdateAssignmentParams = {
   id: number;
   title?: string;
-  startDate?: string;
-  dueDate?: string;
+  startDate?: string | Date;
+  dueDate?: string | Date;
   lessonId?: number;
 };
 
@@ -328,23 +172,33 @@ type UpdateAssignmentParams = {
 export function useCreateAssignment() {
   return useSupabaseMutation<CreateAssignmentParams, { id: number }>(
     async (supabase, params) => {
-      const { data, error } = await supabase
-        .from('Assignment')
-        .insert(params)
-        .select('id')
-        .single();
-      
-      if (error) {
-        throw new Error(`Error al crear tarea: ${error.message}`);
-      }
-      
-      return data as { id: number };
+         // Preparar datos (convertir fechas a ISO string si son Date)
+         const insertData: { [key: string]: any } = { ...params };
+         // Convertir Dates a ISO strings para la inserción
+         if (insertData.startDate && insertData.startDate instanceof Date) {
+             insertData.startDate = insertData.startDate.toISOString().slice(0, 10); // YYYY-MM-DD
+         }
+         if (insertData.dueDate && insertData.dueDate instanceof Date) {
+             insertData.dueDate = insertData.dueDate.toISOString().slice(0, 10); // YYYY-MM-DD
+         }
+
+         const { data, error } = await supabase
+            .from('Assignment')
+            .insert(insertData)
+            .select('id')
+            .single();
+
+         if (error) {
+            console.error("Error creating assignment:", error);
+            throw new Error(`Error al crear tarea: ${error.message}`);
+         }
+
+         return data as { id: number };
     },
     {
       invalidateQueries: [['assignment', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Tarea creada exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Create Assignment):", error);
       }
     }
   );
@@ -357,25 +211,35 @@ export function useUpdateAssignment() {
   return useSupabaseMutation<UpdateAssignmentParams, { id: number }>(
     async (supabase, params) => {
       const { id, ...rest } = params;
-      
-      const { data, error } = await supabase
-        .from('Assignment')
-        .update(rest)
-        .eq('id', id)
-        .select('id')
-        .single();
-      
-      if (error) {
-        throw new Error(`Error al actualizar tarea: ${error.message}`);
-      }
-      
-      return data as { id: number };
+
+       // Preparar datos (convertir fechas a ISO string si son Date)
+        const updateData: { [key: string]: any } = { ...rest };
+         // Convertir Dates a ISO strings para la actualización
+        if (updateData.startDate && updateData.startDate instanceof Date) {
+            updateData.startDate = updateData.startDate.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+         if (updateData.dueDate && updateData.dueDate instanceof Date) {
+            updateData.dueDate = updateData.dueDate.toISOString().slice(0, 10); // YYYY-MM-DD
+        }
+
+        const { data, error } = await supabase
+          .from('Assignment')
+          .update(updateData)
+          .eq('id', id)
+          .select('id')
+          .single();
+
+        if (error) {
+           console.error("Error updating assignment:", error);
+           throw new Error(`Error al actualizar tarea: ${error.message}`);
+        }
+
+        return data as { id: number };
     },
     {
       invalidateQueries: [['assignment', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Tarea actualizada exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Update Assignment):", error);
       }
     }
   );
@@ -387,20 +251,37 @@ export function useUpdateAssignment() {
 export function useDeleteAssignment() {
   return useSupabaseMutation<{ id: number }, void>(
     async (supabase, { id }) => {
+        // Considerar RPC si se necesita verificar dependencias (ej: Resultados)
+         /*
+        CREATE OR REPLACE FUNCTION delete_assignment_if_unused(assignment_id_to_delete int)
+        RETURNS void LANGUAGE plpgsql AS $$
+        BEGIN
+          IF EXISTS (SELECT 1 FROM public."Result" WHERE "assignmentId" = assignment_id_to_delete) THEN
+             RAISE EXCEPTION 'ASSIGNMENT_HAS_RESULTS';
+          END IF;
+          DELETE FROM public."Assignment" WHERE id = assignment_id_to_delete;
+        END;
+        $$;
+       */
+        // const { error } = await supabase.rpc('delete_assignment_if_unused', { assignment_id_to_delete: id });
+
       const { error } = await supabase
         .from('Assignment')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
+        /* if (error.message.includes('ASSIGNMENT_HAS_RESULTS')) {
+             throw new Error('ASSIGNMENT_HAS_RESULTS');
+        } */
+        console.error("Error deleting assignment:", error);
         throw new Error(`Error al eliminar tarea: ${error.message}`);
       }
     },
     {
       invalidateQueries: [['assignment', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Tarea eliminada exitosamente');
+       onError: (error) => {
+         console.error("Mutation error (Delete Assignment):", error);
       }
     }
   );

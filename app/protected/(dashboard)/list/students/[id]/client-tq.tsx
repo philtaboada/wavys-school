@@ -9,7 +9,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { HeartPulse, Calendar1, Mail, Phone, CalendarPlus, ClipboardCheck, BookOpenCheck, Presentation } from "lucide-react";
 import Loading from '../../loading';
-import { Suspense } from 'react';
 
 interface StudentDetailsTQProps {
   initialRole?: string;

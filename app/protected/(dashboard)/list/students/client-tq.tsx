@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
@@ -13,32 +13,58 @@ import { Student } from '@/utils/types/student';
 import Link from 'next/link';
 import Loading from '../loading';
 
+// Definir tipo SearchParams
+interface SearchParams {
+  page?: string;
+  search?: string;
+  classId?: string;
+  gradeId?: string;
+  parentId?: string;
+  [key: string]: string | undefined;
+}
+
 interface StudentClientTQProps {
   initialRole?: string;
   initialUserId?: string;
+  searchParams?: SearchParams; // Aceptar prop
 }
 
-export default function StudentClientTQ({ initialRole, initialUserId }: StudentClientTQProps) {
-  const searchParams = useSearchParams();
+export default function StudentClientTQ({ 
+  initialRole, 
+  initialUserId, 
+  searchParams: initialSearchParams // Renombrar
+}: StudentClientTQProps) {
+  const currentSearchParams = useSearchParams();
   const router = useRouter();
 
-  // Estado local para la búsqueda
-  const [searchValue, setSearchValue] = useState(searchParams.get('search') || '');
+  // Estado local para búsqueda
+  const [searchValue, setSearchValue] = useState(initialSearchParams?.search || '');
 
-  // Obtener datos del usuario desde el caché
+  // Usuario
   const { user } = useUser();
   const userRole = user?.user_metadata?.role || initialRole;
   const userId = user?.id || initialUserId;
 
-  // Obtener valores de los parámetros de la URL
-  const pageNum = searchParams.get('page') ? parseInt(searchParams.get('page') as string, 10) : 1;
-  const classId = searchParams.get('classId') ? parseInt(searchParams.get('classId') as string, 10) : undefined;
+  // Leer parámetros ACTUALES de URL
+  const pageNum = parseInt(currentSearchParams.get('page') || "1", 10);
+  const currentSearch = currentSearchParams.get('search') || undefined;
+  const classId = currentSearchParams.get('classId') ? parseInt(currentSearchParams.get('classId') as string, 10) : undefined;
+  const gradeId = currentSearchParams.get('gradeId') ? parseInt(currentSearchParams.get('gradeId') as string, 10) : undefined;
+  const parentId = currentSearchParams.get('parentId') || undefined;
 
-  // Usar el hook de TanStack Query para obtener los datos
+  // Sincronizar estado local
+  useEffect(() => {
+      setSearchValue(currentSearch ?? '');
+  }, [currentSearch]);
+
+  // Hook con parámetros ACTUALES
   const { data, isLoading, error } = useStudentList({
     page: pageNum,
-    search: searchValue || undefined,
-    classId
+    search: currentSearch,
+    classId,
+    gradeId, // Pasar gradeId
+    parentId, // Pasar parentId
+    // No necesita pasar role/userId ya que useStudentList no los usa directamente
   });
 
   // Definir las columnas de la tabla
@@ -85,22 +111,29 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
         className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
       >
         <td className="flex items-center gap-4 p-4">
-          <CircleUser className="w-10 h-10 rounded-full object-cover" />
+          {item.img ? (
+            <img 
+                src={item.img} 
+                alt={`${item.name} ${item.surname}`} 
+                className="w-10 h-10 rounded-full object-cover"
+                onError={(e) => (e.currentTarget.src = '/default-avatar.png')}
+             />
+          ) : (
+             <CircleUser className="w-10 h-10 rounded-full object-cover text-gray-400" />
+          )}
           <div className="flex flex-col">
-            <h3 className="font-semibold">{item.name}</h3>
-            <p className="text-xs text-gray-500">{item.Class?.name}</p>
+            <h3 className="font-semibold">{item.name} {item.surname}</h3>
+            <p className="text-xs text-gray-500">{item.Class?.name ?? 'Sin clase'}</p>
           </div>
         </td>
-        <td className="hidden md:table-cell">{item.username}</td>
-        <td className="hidden md:table-cell">{item.Class?.name?.[0] || '-'}</td>
+        <td className="hidden md:table-cell">{item.username ?? '-'}</td>
+        <td className="hidden md:table-cell">{(item.Grade as { level?: string })?.level ?? '-'}</td>
         <td className="hidden lg:table-cell">{item.phone || "-"}</td>
         <td className="hidden lg:table-cell">{item.address || "-"}</td>
         <td>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Link href={`/protected/list/students/${item.id}`}>
-              <button className="w-7 h-7 flex items-center justify-center rounded-full cursor-pointer">
-                <svg xmlns="http://www.w3.org/2000/svg" width={24} height={24} viewBox="0 0 24 24"><path fill="#990000" d="M12 9a3 3 0 0 0-3 3a3 3 0 0 0 3 3a3 3 0 0 0 3-3a3 3 0 0 0-3-3m0 8a5 5 0 0 1-5-5a5 5 0 0 1 5-5a5 5 0 0 1 5 5a5 5 0 0 1-5 5m0-12.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5"></path></svg>
-              </button>
+              <Eye className="w-5 h-5 text-blue-600 hover:text-blue-800 cursor-pointer" />
             </Link>
             {userRole === "admin" && (
               <>
@@ -108,7 +141,7 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
                 <FormContainerTQ 
                   table="student" 
                   type="delete" 
-                  id={typeof item.id === 'string' ? parseInt(item.id, 10) : item.id} 
+                  id={item.id as any} 
                 />
               </>
             )}
@@ -125,9 +158,13 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
 
   // Manejar el envío del formulario de búsqueda
   const handleSearch = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('search', searchValue);
-    params.set('page', '1'); // Resetear a la primera página al buscar
+    const params = new URLSearchParams(currentSearchParams.toString());
+    if (searchValue) {
+        params.set('search', searchValue);
+    } else {
+        params.delete('search');
+    }
+    params.set('page', '1');
     router.push(`?${params.toString()}`);
   };
 
@@ -138,7 +175,8 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
         <h1 className="text-lg font-semibold mb-4">Error en Lista de Estudiantes</h1>
         <p>Se produjo un error al obtener los datos</p>
         <pre className="bg-red-50 p-2 mt-2 rounded text-xs overflow-auto">
-          {error.message}
+           {typeof error === 'object' && error !== null && 'message' in error ? 
+             (error as {message: string}).message : String(error)}
         </pre>
       </div>
     );
@@ -147,44 +185,32 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
   return (
     <div className="bg-white p-4 rounded-md flex-1 m-4 mt-0">
       {/* TOP */}
-      <div className="flex items-center justify-between">
-        <h1 className="hidden md:block text-lg font-semibold">
-          Todos los estudiantes
-        </h1>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <TableSearch
-            value={searchValue}
-            onChange={handleSearchChange}
-            onSearch={handleSearch}
-          />
-          <div className="flex items-center gap-4 self-end">
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
-              <ListFilterPlus className="w-4 h-4" />
-            </button>
-            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-lamaYellow hover:bg-lamaYellowLight transition-all cursor-pointer">
-              <ArrowDownNarrowWide className="w-4 h-4" />
-            </button>
-            {userRole === "admin" && (
-              <FormContainerTQ table="student" type="create" />
-            )}
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-4">
+          <h1 className="hidden md:block text-lg font-semibold">
+            Todos los estudiantes
+          </h1>
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto justify-end">
+              <TableSearch
+                value={searchValue}
+                onChange={handleSearchChange}
+                onSearch={handleSearch}
+              />
+              <div className="flex items-center gap-4 self-end">
+                  {userRole === "admin" && (
+                    <FormContainerTQ table="student" type="create" />
+                  )}
+              </div>
           </div>
-        </div>
       </div>
 
       {/* LIST */}
-      {isLoading ? (
+      {isLoading && !data ? (
         <div className="py-8 text-center">
           <Loading />
         </div>
       ) : !data?.data || data.data.length === 0 ? (
         <div className="py-4 text-center">
-          {userRole === "parent" ? (
-            <p>No hay estudiantes asignados a tu cuenta.</p>
-          ) : userRole === "teacher" ? (
-            <p>No tienes estudiantes asignados.</p>
-          ) : (
-            <p>No se encontraron estudiantes.</p>
-          )}
+           <p>No se encontraron estudiantes{currentSearch ? ` para "${currentSearch}"` : ''}.</p>
         </div>
       ) : (
         <Table columns={columns} renderRow={renderRow} data={data.data} />
@@ -206,6 +232,8 @@ export default function StudentClientTQ({ initialRole, initialUserId }: StudentC
               <p><strong>Page:</strong> {pageNum}</p>
               <p><strong>Search:</strong> {searchValue || 'No disponible'}</p>
               <p><strong>Class ID:</strong> {classId || 'No disponible'}</p>
+              <p><strong>Grade ID:</strong> {gradeId || 'No disponible'}</p>
+              <p><strong>Parent ID:</strong> {parentId || 'No disponible'}</p>
               <p><strong>Students count:</strong> {data?.count || 0}</p>
             </div>
           </details>

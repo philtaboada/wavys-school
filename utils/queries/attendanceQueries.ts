@@ -3,89 +3,130 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Attendance, AttendanceListParams, AttendanceListResult } from '@/utils/types/attendance';
+import { createClient } from '@/utils/supabase/client'; // Importar para filtros
+
 /**
- * Hook para obtener la lista de asistencias con filtrado y paginación
+ * Hook para obtener la lista de asistencias con filtrado y paginación optimizado
  */
 export function useAttendanceList(params: AttendanceListParams) {
   const { page, search, userId, role } = params;
-  
+
   return useSupabaseQuery<AttendanceListResult>(
     ['attendance', 'list', page, search, role, userId],
     async (supabase) => {
-      // Construir la consulta base
-      let query = supabase
-        .from('Attendance')
-        .select(`
-          *,
-          Student(*),
-          Lesson(*, Subject(*))
-        `, { count: 'exact' });
 
-      // Aplicar filtros según el rol
+      let filterLessonIds: number[] | null = null;
+      let filterStudentIds: string[] | null = null;
+
+      // **Manejo de filtros dependientes (antes de construir la query principal)**
       if (role === "teacher" && userId) {
-        // Obtener lecciones impartidas por el profesor
         const { data: teacherLessons } = await supabase
           .from('Lesson')
           .select('id')
           .eq('teacherId', userId);
-        
         if (teacherLessons && teacherLessons.length > 0) {
-          const lessonIds = teacherLessons.map(lesson => lesson.id);
-          query = query.in('lessonId', lessonIds);
+          filterLessonIds = teacherLessons.map(lesson => lesson.id);
         } else {
-          return { data: [], count: 0 };
+          return { data: [], count: 0 }; // Profesor sin lecciones
         }
-      } else if (role === "student" && userId) {
-        query = query.eq('studentId', userId);
       } else if (role === "parent" && userId) {
-        // Obtener estudiantes del padre
         const { data: parentStudents } = await supabase
           .from('Student')
           .select('id')
           .eq('parentId', userId);
-        
         if (parentStudents && parentStudents.length > 0) {
-          const studentIds = parentStudents.map(student => student.id);
-          query = query.in('studentId', studentIds);
+          filterStudentIds = parentStudents.map(student => student.id);
         } else {
-          return { data: [], count: 0 };
+          return { data: [], count: 0 }; // Padre sin hijos
         }
       }
 
-      // Aplicar filtros de búsqueda
+      // Obtener IDs de estudiantes por búsqueda si es necesario
+      let searchStudentIds: string[] | null = null;
       if (search) {
-        // Aplicar la búsqueda por nombre de estudiante
-        const { data: searchStudents } = await supabase
-          .from('Student')
-          .select('id')
-          .ilike('name', `%${search}%`)
-          .or(`surname.ilike.%${search}%`);
-        
-        if (searchStudents && searchStudents.length > 0) {
-          const studentIds = searchStudents.map(student => student.id);
-          query = query.in('studentId', studentIds);
-        }
+          const searchLower = search.toLowerCase();
+          const { data: studentsByName } = await supabase
+             .from('Student')
+             .select('id')
+             .or(`name.ilike.%${searchLower}%,surname.ilike.%${searchLower}%`);
+          if (studentsByName && studentsByName.length > 0) {
+              searchStudentIds = studentsByName.map(s => s.id);
+              // Si la búsqueda no encuentra estudiantes, no habrá resultados
+              if (searchStudentIds.length === 0) {
+                  return { data: [], count: 0 };
+              }
+          } else {
+               return { data: [], count: 0 };
+          }
       }
 
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('id', { ascending: false });
+      // Construir la consulta base con relaciones
+      let query = supabase
+        .from('Attendance')
+        .select(`
+          id,
+          date,
+          present,
+          studentId,
+          lessonId,
+          Student (id, name, surname),
+          Lesson (id, name, Subject (id, name))
+        `, { count: 'exact' });
 
-      const { data, error, count } = await query;
+      // Aplicar filtros
+      if (filterLessonIds) {
+        query = query.in('lessonId', filterLessonIds);
+      }
+      // El filtro por rol 'student' es directo
+      if (role === "student" && userId) {
+        query = query.eq('studentId', userId);
+      }
+      // Aplicar filtro por studentIds de padre
+      if (filterStudentIds) {
+         // Si también hay filtro por búsqueda, interseccionar los IDs
+         if (searchStudentIds) {
+            const intersection = filterStudentIds.filter(id => searchStudentIds!.includes(id));
+            if (intersection.length === 0) return { data: [], count: 0 };
+            query = query.in('studentId', intersection);
+         } else {
+            query = query.in('studentId', filterStudentIds);
+         }
+      } else if (searchStudentIds) {
+         // Aplicar solo filtro por búsqueda si no hay filtro de padre
+         query = query.in('studentId', searchStudentIds);
+      }
+
+      // Paginación y orden
+      const rangeStart = (page - 1) * ITEM_PER_PAGE;
+      const rangeEnd = rangeStart + ITEM_PER_PAGE - 1;
+      query = query.range(rangeStart, rangeEnd).order('date', { ascending: false }); // Ordenar por fecha descendente
+
+      // Ejecutar consulta
+      const { data, error, count } = await query.returns<Attendance[]>();
 
       if (error) {
+        console.error("Error fetching attendance:", error);
         throw new Error(`Error al obtener datos de asistencia: ${error.message}`);
       }
 
-      return { 
-        data: data as Attendance[], 
-        count: count || 0 
+       // Mapear resultados para asegurar tipos (convertir relaciones null a undefined)
+       const resultData = data.map(att => ({
+          ...att,
+          Student: att.Student ?? undefined,
+          Lesson: att.Lesson ? {
+             ...att.Lesson,
+             Subject: att.Lesson.Subject ?? undefined
+          } : undefined
+       }));
+
+      return {
+        data: resultData,
+        count: count || 0
       };
     },
     {
-      staleTime: 1000 * 60 * 5, // 5 minutos
-      refetchOnWindowFocus: false
+      staleTime: 1000 * 60 * 2, // StaleTime más corto para asistencia? O mantener 5 min?
+      refetchOnWindowFocus: true // Podría ser útil para asistencia
     }
   );
 }
@@ -117,18 +158,18 @@ export function useCreateAttendance() {
         .insert(params)
         .select('id')
         .single();
-      
+
       if (error) {
+        console.error("Error creating attendance:", error);
         throw new Error(`Error al crear asistencia: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
-      invalidateQueries: [['attendance', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Asistencia creada exitosamente');
+      invalidateQueries: [['attendance', 'list'], ['attendance', 'weekly']], // Invalidar lista y vista semanal (si existe)
+       onError: (error) => {
+         console.error("Mutation error (Create Attendance):", error);
       }
     }
   );
@@ -141,25 +182,25 @@ export function useUpdateAttendance() {
   return useSupabaseMutation<UpdateAttendanceParams, { id: number }>(
     async (supabase, params) => {
       const { id, ...rest } = params;
-      
+
       const { data, error } = await supabase
         .from('Attendance')
         .update(rest)
         .eq('id', id)
         .select('id')
         .single();
-      
+
       if (error) {
+        console.error("Error updating attendance:", error);
         throw new Error(`Error al actualizar asistencia: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
-      invalidateQueries: [['attendance', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Asistencia actualizada exitosamente');
+      invalidateQueries: [['attendance', 'list'], ['attendance', 'weekly']],
+       onError: (error) => {
+         console.error("Mutation error (Update Attendance):", error);
       }
     }
   );
@@ -175,16 +216,16 @@ export function useDeleteAttendance() {
         .from('Attendance')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
+        console.error("Error deleting attendance:", error);
         throw new Error(`Error al eliminar asistencia: ${error.message}`);
       }
     },
     {
-      invalidateQueries: [['attendance', 'list']],
-      onSuccess: () => {
-        // Aquí podrías mostrar una notificación de éxito
-        console.log('Asistencia eliminada exitosamente');
+      invalidateQueries: [['attendance', 'list'], ['attendance', 'weekly']],
+       onError: (error) => {
+         console.error("Mutation error (Delete Attendance):", error);
       }
     }
   );

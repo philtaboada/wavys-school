@@ -46,16 +46,60 @@ export type Assignment = {
   lesson?: Lesson;
 };
 
-// Tipo de datos principal
+// Tipo de datos principal (ajustado para recibir datos anidados)
 export type Result = {
   id: number;
   score: number;
   studentId: string;
   examId?: number | null;
   assignmentId?: number | null;
-  student?: Student;
-  exam?: Exam;
-  assignment?: Assignment;
+  Student?: { // Cambiado de 'student?' a 'Student?' para coincidir con el select
+    id: string;
+    name: string;
+    surname: string;
+    parentId?: string | null; // Añadido para filtro de padre
+  } | null;
+  Exam?: { // Cambiado de 'exam?' a 'Exam?'
+    id: number;
+    title: string;
+    startTime: string; // Supabase devuelve como string
+    lessonId: number;
+    Lesson?: { // Anidado
+      id: number;
+      teacherId?: string | null;
+      classId?: number | null;
+      Teacher?: { // Anidado
+        id: string;
+        name: string;
+        surname: string;
+      } | null;
+      Class?: { // Anidado
+        id: number;
+        name: string;
+      } | null;
+    } | null;
+  } | null;
+  Assignment?: { // Cambiado de 'assignment?' a 'Assignment?'
+    id: number;
+    title: string;
+    startDate: string; // Supabase devuelve como string
+    dueDate: string; // Supabase devuelve como string
+    lessonId: number;
+    Lesson?: { // Anidado (igual que en Exam)
+      id: number;
+      teacherId?: string | null;
+      classId?: number | null;
+      Teacher?: {
+        id: string;
+        name: string;
+        surname: string;
+      } | null;
+      Class?: {
+        id: number;
+        name: string;
+      } | null;
+    } | null;
+  } | null;
 };
 
 // Tipos para la visualización en la interfaz
@@ -99,353 +143,159 @@ export type UpdateResultParams = {
 };
 
 /**
- * Hook para obtener la lista de resultados con filtrado y paginación
+ * Hook para obtener la lista de resultados con filtrado y paginación optimizada
  */
 export function useResultList(params: ResultListParams & { userRole?: string; userId?: string }) {
   const { page, search, studentId, examId, assignmentId, userRole, userId } = params;
-  
+
   return useSupabaseQuery<ResultListResult>(
+    // La queryKey sigue igual para mantener la estructura de caché
     ['result', 'list', page, search, studentId, examId, assignmentId, userRole, userId],
     async (supabase) => {
-      // Construir la consulta base
+      // Construir la consulta base con joins implícitos
       let query = supabase
         .from('Result')
-        .select('*', { count: 'exact' });
+        .select(`
+          id,
+          score,
+          studentId,
+          examId,
+          assignmentId,
+          Student (id, name, surname, parentId),
+          Exam (
+            id, title, startTime,
+            Lesson (
+              id, teacherId, classId,
+              Teacher (id, name, surname),
+              Class (id, name)
+            )
+          ),
+          Assignment (
+            id, title, startDate, dueDate,
+            Lesson (
+              id, teacherId, classId,
+              Teacher (id, name, surname),
+              Class (id, name)
+            )
+          )
+        `, { count: 'exact' }); // Mantenemos count: 'exact' para la paginación
 
-      // Aplicar filtros específicos
+      // Aplicar filtros específicos directos en la consulta
       if (studentId) {
         query = query.eq('studentId', studentId);
       }
-
       if (examId) {
         query = query.eq('examId', examId);
       }
-
       if (assignmentId) {
         query = query.eq('assignmentId', assignmentId);
       }
 
-      // Ejecutar la consulta principal
-      const { data: resultsData, error: resultsError, count } = await query;
+      // **Filtros complejos (rol, búsqueda) se aplican DESPUÉS de obtener los datos**
+      // Podrían optimizarse más moviéndolos a funciones de base de datos (RPC) si el rendimiento sigue siendo un problema.
+
+      // Paginación (se aplica antes de la ejecución)
+      const rangeStart = (page - 1) * ITEM_PER_PAGE;
+      const rangeEnd = rangeStart + ITEM_PER_PAGE - 1;
+      query = query.range(rangeStart, rangeEnd);
+
+      // Ejecutar la consulta única
+      const { data: resultsData, error: resultsError, count } = await query.returns<Result[]>(); // Especificar tipo de retorno
 
       if (resultsError) {
+        console.error("Error fetching results:", resultsError);
         throw new Error(`Error al obtener datos de resultados: ${resultsError.message}`);
       }
 
       // Si no hay resultados, retornar temprano
       if (!resultsData || resultsData.length === 0) {
-        return { data: [], count: 0 };
+        return { data: [], count: count || 0 };
       }
 
-      // Mapear IDs para consultas adicionales
-      const studentIds = resultsData
-        .map(result => result.studentId)
-        .filter((id, index, self) => self.indexOf(id) === index);
-      
-      const examIds = resultsData
-        .filter(result => result.examId)
-        .map(result => result.examId)
-        .filter((id, index, self) => self.indexOf(id) === index);
-      
-      const assignmentIds = resultsData
-        .filter(result => result.assignmentId)
-        .map(result => result.assignmentId)
-        .filter((id, index, self) => self.indexOf(id) === index);
-      
-      // 1. Cargar datos de estudiantes
-      const studentMap = new Map<string, Student>();
-      if (studentIds.length > 0) {
-        const { data: studentsData, error: studentsError } = await supabase
-          .from('Student')
-          .select('id, name, surname')
-          .in('id', studentIds);
-        
-        if (studentsError) {
-          throw new Error(`Error al obtener datos de estudiantes: ${studentsError.message}`);
-        }
-        
-        if (studentsData) {
-          studentsData.forEach(student => {
-            studentMap.set(student.id, { 
-              id: student.id, 
-              name: student.name, 
-              surname: student.surname 
-            });
-          });
-        }
-      }
-      
-      // 2. Cargar datos de exámenes y sus relaciones
-      const examMap = new Map<number, Exam>();
-      const examLessonIds: number[] = [];
-      if (examIds.length > 0) {
-        const { data: examsData, error: examsError } = await supabase
-          .from('Exam')
-          .select('id, title, startTime, lessonId')
-          .in('id', examIds);
-        
-        if (examsError) {
-          throw new Error(`Error al obtener datos de exámenes: ${examsError.message}`);
-        }
-        
-        if (examsData) {
-          examsData.forEach(exam => {
-            examMap.set(exam.id, { 
-              id: exam.id, 
-              title: exam.title, 
-              startTime: exam.startTime,
-              lessonId: exam.lessonId
-            });
-            if (exam.lessonId) examLessonIds.push(exam.lessonId);
-          });
-        }
-      }
-      
-      // 3. Cargar datos de tareas y sus relaciones
-      const assignmentMap = new Map<number, Assignment>();
-      const assignmentLessonIds: number[] = [];
-      if (assignmentIds.length > 0) {
-        const { data: assignmentsData, error: assignmentsError } = await supabase
-          .from('Assignment')
-          .select('id, title, startDate, dueDate, lessonId')
-          .in('id', assignmentIds);
-        
-        if (assignmentsError) {
-          throw new Error(`Error al obtener datos de tareas: ${assignmentsError.message}`);
-        }
-        
-        if (assignmentsData) {
-          assignmentsData.forEach(assignment => {
-            assignmentMap.set(assignment.id, { 
-              id: assignment.id, 
-              title: assignment.title, 
-              startDate: assignment.startDate,
-              dueDate: assignment.dueDate,
-              lessonId: assignment.lessonId
-            });
-            if (assignment.lessonId) assignmentLessonIds.push(assignment.lessonId);
-          });
-        }
-      }
-      
-      // 4. Cargar datos de lecciones y sus relaciones
-      const lessonIds = Array.from(new Set([...examLessonIds, ...assignmentLessonIds]));
-      const lessonMap = new Map<number, Lesson>();
-      const teacherIds: string[] = [];
-      const classIds: number[] = [];
-      
-      if (lessonIds.length > 0) {
-        const { data: lessonsData, error: lessonsError } = await supabase
-          .from('Lesson')
-          .select('id, teacherId, classId')
-          .in('id', lessonIds);
-        
-        if (lessonsError) {
-          throw new Error(`Error al obtener datos de lecciones: ${lessonsError.message}`);
-        }
-        
-        if (lessonsData) {
-          lessonsData.forEach(lesson => {
-            lessonMap.set(lesson.id, { 
-              id: lesson.id, 
-              teacherId: lesson.teacherId,
-              classId: lesson.classId
-            });
-            if (lesson.teacherId) teacherIds.push(lesson.teacherId);
-            if (lesson.classId) classIds.push(lesson.classId);
-          });
-        }
-      }
-      
-      // 5. Cargar datos de profesores
-      const teacherMap = new Map<string, Teacher>();
-      if (teacherIds.length > 0) {
-        const { data: teachersData, error: teachersError } = await supabase
-          .from('Teacher')
-          .select('id, name, surname')
-          .in('id', teacherIds);
-        
-        if (teachersError) {
-          throw new Error(`Error al obtener datos de profesores: ${teachersError.message}`);
-        }
-        
-        if (teachersData) {
-          teachersData.forEach(teacher => {
-            teacherMap.set(teacher.id, { 
-              id: teacher.id, 
-              name: teacher.name, 
-              surname: teacher.surname 
-            });
-          });
-        }
-      }
-      
-      // 6. Cargar datos de clases
-      const classMap = new Map<number, Class>();
-      if (classIds.length > 0) {
-        const { data: classesData, error: classesError } = await supabase
-          .from('Class')
-          .select('id, name')
-          .in('id', classIds);
-        
-        if (classesError) {
-          throw new Error(`Error al obtener datos de clases: ${classesError.message}`);
-        }
-        
-        if (classesData) {
-          classesData.forEach(cls => {
-            classMap.set(cls.id, { id: cls.id, name: cls.name });
-          });
-        }
-      }
-      
-      // 7. Asignar profesores y clases a lecciones
-      for (const [lessonId, lesson] of Array.from(lessonMap.entries())) {
-        if (lesson.teacherId && teacherMap.has(lesson.teacherId)) {
-          lesson.teacher = teacherMap.get(lesson.teacherId);
-        }
-        if (lesson.classId && classMap.has(lesson.classId)) {
-          lesson.class = classMap.get(lesson.classId);
-        }
-      }
-      
-      // 8. Asignar lecciones a exámenes y tareas
-      for (const [examId, exam] of Array.from(examMap.entries())) {
-        if (exam.lessonId && lessonMap.has(exam.lessonId)) {
-          exam.lesson = lessonMap.get(exam.lessonId);
-        }
-      }
-      
-      for (const [assignmentId, assignment] of Array.from(assignmentMap.entries())) {
-        if (assignment.lessonId && lessonMap.has(assignment.lessonId)) {
-          assignment.lesson = lessonMap.get(assignment.lessonId);
-        }
-      }
-      
-      // 9. Filtrado adicional para el rol de profesor
+      // **Procesamiento y filtrado adicional en el cliente (Post-fetch Filtering)**
+      // Esto es necesario para filtros complejos que no se pueden traducir fácilmente a la API de Supabase
+      // o que dependen de datos relacionados de forma compleja (como el rol).
+
       let filteredResults = [...resultsData];
-      
+
+      // 1. Filtrado por rol (Teacher)
       if (userRole === "teacher" && userId) {
         filteredResults = filteredResults.filter(result => {
-          if (result.examId && examMap.has(result.examId)) {
-            const exam = examMap.get(result.examId);
-            return exam?.lesson?.teacher?.id === userId;
-          }
-          if (result.assignmentId && assignmentMap.has(result.assignmentId)) {
-            const assignment = assignmentMap.get(result.assignmentId);
-            return assignment?.lesson?.teacher?.id === userId;
-          }
-          return false;
+          const lesson = result.Exam?.Lesson || result.Assignment?.Lesson;
+          return lesson?.teacherId === userId;
         });
       }
-      
-      // 10. Filtrado adicional para el rol de estudiante
-      else if (userRole === "student" && userId) {
-        filteredResults = filteredResults.filter(result => 
-          result.studentId === userId
-        );
+      // 2. Filtrado por rol (Student) - Este ya se aplica en la query si studentId está presente
+      else if (userRole === "student" && userId && !studentId) { // Aplicar solo si no se filtró por ID específico
+        filteredResults = filteredResults.filter(result => result.studentId === userId);
       }
-      
-      // 11. Filtrado adicional para el rol de padre
+      // 3. Filtrado por rol (Parent)
       else if (userRole === "parent" && userId) {
-        // Obtener los estudiantes asignados al padre
-        const { data: parentStudents, error: parentStudentsError } = await supabase
-          .from('Student')
-          .select('id')
-          .eq('parentId', userId);
-        
-        if (parentStudentsError) {
-          throw new Error(`Error al obtener estudiantes del padre: ${parentStudentsError.message}`);
-        }
-        
-        if (parentStudents && parentStudents.length > 0) {
-          const childIds = parentStudents.map(student => student.id);
-          filteredResults = filteredResults.filter(result => 
-            childIds.includes(result.studentId)
-          );
-        } else {
-          // Si no hay estudiantes asignados, no mostrar resultados
-          filteredResults = [];
-        }
+        // Nota: El filtro original hacía otra llamada a Supabase. Lo mantenemos en cliente por ahora.
+        // Para optimizarlo más, se necesitaría una función RPC o filtrar previamente los students.
+         filteredResults = filteredResults.filter(result =>
+           result.Student?.parentId === userId
+         );
+        // Alternativa (si no se incluye parentId en Student select): Necesitaría otra llamada o pre-fetch
+        // const { data: parentStudents } = await supabase.from('Student').select('id').eq('parentId', userId);
+        // const childIds = parentStudents?.map(s => s.id) || [];
+        // filteredResults = filteredResults.filter(result => childIds.includes(result.studentId));
       }
-      
-      // 12. Filtrado por texto de búsqueda
+
+      // 4. Filtrado por texto de búsqueda
       if (search && search.length > 0) {
         const searchLower = search.toLowerCase();
         filteredResults = filteredResults.filter(result => {
+          const student = result.Student;
+          const exam = result.Exam;
+          const assignment = result.Assignment;
+
           // Buscar en título de examen/tarea
-          if (result.examId && examMap.has(result.examId)) {
-            const exam = examMap.get(result.examId);
-            if (exam?.title && exam.title.toLowerCase().includes(searchLower)) return true;
-          }
-          if (result.assignmentId && assignmentMap.has(result.assignmentId)) {
-            const assignment = assignmentMap.get(result.assignmentId);
-            if (assignment?.title && assignment.title.toLowerCase().includes(searchLower)) return true;
-          }
-          
+          if (exam?.title && exam.title.toLowerCase().includes(searchLower)) return true;
+          if (assignment?.title && assignment.title.toLowerCase().includes(searchLower)) return true;
+
           // Buscar en nombre de estudiante
-          if (studentMap.has(result.studentId)) {
-            const student = studentMap.get(result.studentId);
-            if (
-              student?.name.toLowerCase().includes(searchLower) ||
-              student?.surname.toLowerCase().includes(searchLower)
-            ) {
-              return true;
-            }
+          if (
+            student?.name.toLowerCase().includes(searchLower) ||
+            student?.surname.toLowerCase().includes(searchLower)
+          ) {
+            return true;
           }
-          
           return false;
         });
       }
-      
-      // 13. Obtener la cantidad total de resultados filtrados
-      const totalCount = filteredResults.length;
-      
-      // 14. Aplicar paginación
-      const paginatedResults = filteredResults.slice(
-        (page - 1) * ITEM_PER_PAGE, 
-        page * ITEM_PER_PAGE
-      );
-      
-      // 15. Crear objetos para mostrar
-      const displayResults = paginatedResults.map(result => {
-        let assessment;
-        let isExam = false;
-        
-        if (result.examId && examMap.has(result.examId)) {
-          assessment = examMap.get(result.examId);
-          isExam = true;
-        } else if (result.assignmentId && assignmentMap.has(result.assignmentId)) {
-          assessment = assignmentMap.get(result.assignmentId);
-        } else {
-          // Si no tiene ni examen ni tarea, este resultado es inválido
-          return null;
-        }
-        
-        const student = studentMap.get(result.studentId) || { name: 'Desconocido', surname: '' };
-        const lesson = assessment?.lesson || { teacher: undefined, class: undefined } as Partial<Lesson>;
-        const teacher = lesson.teacher || { name: 'Desconocido', surname: '' };
-        const className = lesson.class ? lesson.class.name : 'Desconocida';
-        
+
+      // Mapear a ResultDisplay después de todos los filtros
+      const displayResults: ResultDisplay[] = filteredResults.map(result => {
+        const student = result.Student;
+        const exam = result.Exam;
+        const assignment = result.Assignment;
+        const lesson = exam?.Lesson || assignment?.Lesson;
+        const teacher = lesson?.Teacher;
+        const cls = lesson?.Class;
+        const isExam = !!exam;
+
         return {
           id: result.id,
-          title: assessment?.title || 'Sin título',
-          studentName: student.name,
-          studentSurname: student.surname,
-          teacherName: teacher.name,
-          teacherSurname: teacher.surname,
+          title: exam?.title || assignment?.title || 'Sin título',
+          studentName: student?.name || 'Desconocido',
+          studentSurname: student?.surname || '',
+          teacherName: teacher?.name || 'Desconocido',
+          teacherSurname: teacher?.surname || '',
           score: result.score,
-          className,
-          startTime: isExam 
-            ? (assessment as Exam)?.startTime 
-            : (assessment as Assignment)?.startDate,
+          className: cls?.name || 'Desconocida',
+          // Parsear fechas después de recibirlas
+          startTime: new Date(exam?.startTime || assignment?.startDate || 0),
           isExam
         };
-      }).filter(Boolean) as ResultDisplay[];
+      });
 
-      return { 
-        data: displayResults, 
-        count: count || 0 
+      // Devolver datos mapeados y el contador total (del query inicial antes del filtro en cliente)
+      // Nota: El 'count' refleja el total ANTES del filtrado por rol/búsqueda en cliente.
+      // Para un contador exacto post-filtro, se necesitaría lógica adicional o mover filtros al backend.
+      return {
+        data: displayResults,
+        count: count || 0
       };
     },
     {
@@ -461,11 +311,10 @@ export function useResultList(params: ResultListParams & { userRole?: string; us
 export function useCreateResult() {
   return useSupabaseMutation<CreateResultParams, { id: number }>(
     async (supabase, params) => {
-      // Verificar que se proporciona examId o assignmentId, pero no ambos
       if ((!params.examId && !params.assignmentId) || (params.examId && params.assignmentId)) {
         throw new Error('Debe proporcionar o un examen o una tarea, pero no ambos');
       }
-      
+
       const { data, error } = await supabase
         .from('Result')
         .insert({
@@ -474,19 +323,23 @@ export function useCreateResult() {
           examId: params.examId || null,
           assignmentId: params.assignmentId || null
         })
-        .select('id')
+        .select('id') // Solo seleccionar el id es suficiente
         .single();
-      
+
       if (error) {
+        console.error("Error creating result:", error);
         throw new Error(`Error al crear resultado: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
-      invalidateQueries: [['result', 'list']],
+      invalidateQueries: [['result', 'list']], // Mantenemos la invalidación
       onSuccess: () => {
-        console.log('Resultado creado exitosamente');
+        // console.log('Resultado creado exitosamente'); // Podemos quitar logs si no son necesarios
+      },
+      onError: (error) => {
+         console.error("Mutation error (Create Result):", error);
       }
     }
   );
@@ -499,24 +352,28 @@ export function useUpdateResult() {
   return useSupabaseMutation<UpdateResultParams, { id: number }>(
     async (supabase, params) => {
       const { id, score } = params;
-      
+
       const { data, error } = await supabase
         .from('Result')
         .update({ score })
         .eq('id', id)
-        .select('id')
+        .select('id') // Solo seleccionar el id
         .single();
-      
+
       if (error) {
+        console.error("Error updating result:", error);
         throw new Error(`Error al actualizar resultado: ${error.message}`);
       }
-      
+
       return data as { id: number };
     },
     {
       invalidateQueries: [['result', 'list']],
       onSuccess: () => {
-        console.log('Resultado actualizado exitosamente');
+        // console.log('Resultado actualizado exitosamente');
+      },
+       onError: (error) => {
+         console.error("Mutation error (Update Result):", error);
       }
     }
   );
@@ -531,16 +388,20 @@ export function useDeleteResult() {
       const { error } = await supabase
         .from('Result')
         .delete()
-        .eq('id', id);
-      
+        .eq('id', id); // No necesitamos select aquí
+
       if (error) {
+        console.error("Error deleting result:", error);
         throw new Error(`Error al eliminar resultado: ${error.message}`);
       }
     },
     {
       invalidateQueries: [['result', 'list']],
       onSuccess: () => {
-        console.log('Resultado eliminado exitosamente');
+        // console.log('Resultado eliminado exitosamente');
+      },
+       onError: (error) => {
+         console.error("Mutation error (Delete Result):", error);
       }
     }
   );

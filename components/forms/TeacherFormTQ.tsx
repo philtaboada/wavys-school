@@ -22,7 +22,7 @@ type ImageInfo = {
 interface EnhancedTeacherDetails extends TeacherDetails {
   username?: string;
   imgPath?: string;
-  subjects?: Array<{id: number; name: string}>;
+  subjects?: Array<{ id: number; name: string }>;
 }
 
 interface TeacherFormTQProps {
@@ -55,23 +55,25 @@ const TeacherFormTQ = ({
     handleSubmit,
     formState: { errors },
     reset
-  } = useForm<TeacherSchema>({
-    resolver: zodResolver(teacherSchema),
-    defaultValues: {
-      id: data?.id ? String(data.id) : undefined,
-      username: data?.username || "",
-      name: data?.name || "",
-      surname: data?.surname || "",
-      email: data?.email || "",
-      password: type === "update" ? undefined : "",
-      phone: data?.phone || "",
-      address: data?.address || "",
-      bloodType: data?.bloodType || "",
-      sex: data?.sex as "MALE" | "FEMALE" | undefined,
-      birthday: data?.birthday ? new Date(data.birthday) : undefined,
-      subjects: isTeacher(data) && data.subjects ? data.subjects.map(s => String(s.id)) : []
+  } = useForm<TeacherSchema>(
+    {
+      resolver: zodResolver(teacherSchema),
+      defaultValues: {
+        id: data?.id ? String(data.id) : undefined,
+        username: data?.username || "",
+        name: data?.name || "",
+        surname: data?.surname || "",
+        email: data?.email || "",
+        password: type === "update" ? undefined : "",
+        phone: data?.phone || "",
+        address: data?.address || "",
+        bloodType: data?.bloodType || "",
+        sex: data?.sex as "MALE" | "FEMALE" | undefined,
+        birthday: data?.birthday ? new Date(data.birthday) : undefined,
+        subjects: isTeacher(data) && data.subjects ? data.subjects.map(s => String(s.id)) : []
+      }
     }
-  });
+  );
 
   // Inicializar estado de imagen con la información de la imagen existente
   const [img, setImg] = useState<ImageInfo | null>(
@@ -88,91 +90,154 @@ const TeacherFormTQ = ({
   const router = useRouter();
 
   const onSubmit = handleSubmit((formData) => {
-    setCustomError(null);
+    try {
+      setIsUploading(true);
+      setCustomError(null);
 
-    // Para la creación, convertimos los IDs de string a number
-    const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+      console.log('Formulario de datos antes del envío:', formData);
 
-    if (type === "create") {
-      createMutation.mutate({
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password || "",
-        phone: formData.phone,
-        address: formData.address || "",
-        bloodType: formData.bloodType || "",
-        sex: formData.sex || "",
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
-        subjects: numericSubjects,
-        img: img?.url,
-        imgPath: img?.path
-      }, {
-        onSuccess: () => {
-          toast.success("Profesor creado correctamente");
-          reset();
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          setCustomError(error.message);
-          toast.error("Error al crear el profesor");
-        }
-      });
-    } else if (formData.id) {
-      updateMutation.mutate({
-        id: formData.id,
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password, // Si es undefined, no se actualizará
-        phone: formData.phone,
-        address: formData.address,
-        bloodType: formData.bloodType,
-        sex: formData.sex,
-        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : "",
-        subjects: numericSubjects,
-        img: img?.url,
-        imgPath: img?.path
-      }, {
-        onSuccess: () => {
-          toast.success("Profesor actualizado correctamente");
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          setCustomError(error.message);
-          toast.error("Error al actualizar el profesor");
-        }
-      });
-    }
+      // Validar los campos requeridos
+      if (!formData.username || !formData.email || !formData.name || !formData.surname) {
+        setCustomError("Complete todos los campos requeridos");
+        return;
+      }
+
+      // Para la creación, convertimos los IDs de string a number
+      // const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+
+    // TODO: Para la creación, convierte las ID de sujeto de cadena a número y filtra valores no válidos
+    const subjects = formData.subjects
+      ? formData.subjects.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => !isNaN(id))
+      : [];
+
+    console.log("Asignaturas procesadas:", subjects);
+    
+    // Preparar los datos del profesor
+    const teacherData = {
+      username: formData.username.trim(),
+      name: formData.name.trim(),
+      surname: formData.surname.trim(),
+      email: formData.email.trim(),
+      phone: formData.phone?.trim() || undefined,
+      address: formData.address?.trim() || "",
+      bloodType: formData.bloodType?.trim() || "",
+      sex: formData.sex || "",
+      birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
+      subjects: subjects
+      // img: img?.url || null,
+      // imgPath: img?.path || null
+    };
+
+    console.log('Datos procesados para enviar:', teacherData);
+
+      if (type === 'create') {
+        console.log('Enviando datos para crear profesor:', teacherData);
+        createMutation.mutate({
+          ...teacherData,
+          password: formData.password || ''
+        }, {
+          onSuccess: () => {
+            toast.success('Profesor creado exitosamente');
+            setOpen(false);
+            router.refresh();
+          },
+          onError: (error) => {
+            setCustomError(error.message);
+            setIsUploading(false);
+          }
+        });
+      } else if (type === 'update' && data?.id) {
+        updateMutation.mutate({
+          ...teacherData,
+          id: data.id,
+          password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
+        }, {
+          onSuccess: () => {
+            toast.success("Profesor actualizado exitosamente");
+            setOpen(false);
+            router.refresh();
+            setIsUploading(false);
+          },
+          onError: (error) => {
+            console.error('Error al actualizar el profesor:', error);
+            setCustomError(error.message);
+            setIsUploading(false);
+          }
+        });
+      }
+  } catch (error) {
+    console.error('Error en onSubmit:', error);
+    setCustomError((error as Error).message);
+      setIsUploading(false);
+  }
+    // if (type === "create") {
+    //   if (!formData.password) {
+    //     setCustomError("La contraseña es obligatoria");
+    //     return;
+    //   }
+
+    //   console.log('Enviando datos para crear profesor:', {...teacherData, password: '***'});
+
+    //   createMutation.mutate({
+    //     ...teacherData,
+    //     password: formData.password
+    //   }, {
+    //     onSuccess: (data) => {
+    //       console.log('Profesor creado con ID:', data.id);
+    //       toast.success("Profesor creado correctamente");
+    //       reset();
+    //       setOpen(false);
+    //       router.refresh();
+    //     },
+    //     onError: (error) => {
+    //       console.error('Error al crear el profesor:', error);
+    //       setCustomError(error.message);
+    //       toast.error("Error al crear el profesor");
+    //     }
+    //   });
+    // } else if (formData.id) {
+    //   updateMutation.mutate({
+    //     ...teacherData,
+    //     id: formData.id,
+    //     password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
+    //   }, {
+    //     onSuccess: () => {
+    //       toast.success("Profesor actualizado correctamente");
+    //       setOpen(false);
+    //       router.refresh();
+    //     },
+    //     onError: (error) => {
+    //       console.error('Error al actualizar el profesor:', error);
+    //       setCustomError(error.message);
+    //       toast.error("Error al actualizar el profesor");
+    //     }
+    //   });
+    // }
   });
 
   // Función para manejar la carga de imágenes con Google Cloud Storage
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    
+
     const file = files[0];
     setIsUploading(true);
-    
+
     try {
       // Crear FormData para enviar el archivo
       const formData = new FormData();
       formData.append('file', file);
-      
+
       // Enviar el archivo al endpoint de carga
       const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) {
         throw new Error('Error al cargar la imagen');
       }
-      
+
       // Ahora recibimos más información de la API, incluida la ruta y la fecha de expiración
       const { url, path, expiresAt } = await response.json();
       setImg({ url, path, expiresAt });
@@ -216,23 +281,23 @@ const TeacherFormTQ = ({
           Complete la información a continuación para {type === "create" ? "registrar un nuevo profesor en el sistema" : "actualizar los datos del profesor seleccionado"}
         </p>
       </div>
-      
+
       {/* Container principal con efecto de sombra y bordes redondeados */}
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden relative w-full">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500"></div>
-        
+
         {/* Sección de autenticación */}
         <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 border-b border-gray-100">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <div className="p-2 rounded-full bg-blue-100">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600 sm:hidden">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600 hidden sm:block lg:hidden">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600 hidden lg:block">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
             <span className="font-semibold text-gray-800 text-base sm:text-lg lg:text-xl">Información de autenticación</span>
@@ -259,7 +324,7 @@ const TeacherFormTQ = ({
               <InputField
                 label="Correo electrónico *"
                 name="email"
-                defaultValue={data?.email}
+                defaultValue={data?.email || ""}
                 register={register}
                 error={errors?.email}
                 className="bg-gray-50 focus:bg-white"
@@ -289,7 +354,7 @@ const TeacherFormTQ = ({
             </div>
           </div>
         </div>
-      
+
         {/* Sección de información personal */}
         <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 border-b border-gray-100">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -309,7 +374,7 @@ const TeacherFormTQ = ({
             </div>
             <span className="font-semibold text-gray-800 text-base sm:text-lg lg:text-xl">Información personal</span>
           </div>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 mb-6">
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
@@ -349,7 +414,7 @@ const TeacherFormTQ = ({
               <InputField
                 label="Teléfono"
                 name="phone"
-                defaultValue={data?.phone}
+                defaultValue={data?.phone || ""}
                 register={register}
                 error={errors.phone}
                 className="bg-gray-50 focus:bg-white"
@@ -376,7 +441,7 @@ const TeacherFormTQ = ({
                 }
               />
             </div>
-          
+
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
                 label="Tipo de sangre *"
@@ -411,7 +476,7 @@ const TeacherFormTQ = ({
                 }
               />
             </div>
-            
+
             <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <span className="text-gray-400">
@@ -439,7 +504,7 @@ const TeacherFormTQ = ({
                 </p>
               )}
             </div>
-            
+
             {data && (
               <InputField
                 label="Id"
@@ -452,7 +517,7 @@ const TeacherFormTQ = ({
             )}
           </div>
         </div>
-        
+
         {/* Sección de imagen y asignaturas */}
         <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row gap-6">
@@ -468,13 +533,13 @@ const TeacherFormTQ = ({
                 </div>
                 <span className="font-semibold text-gray-800 text-base sm:text-lg">Fotografía</span>
               </div>
-              
+
               <div className="flex flex-col items-center justify-center bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl p-4 transition-all hover:border-blue-400">
                 {img ? (
                   <div className="relative w-full pt-[100%] overflow-hidden rounded-lg shadow-md mb-3">
-                    <Image 
-                      src={img.url} 
-                      alt="Foto del profesor" 
+                    <Image
+                      src={img.url}
+                      alt="Foto del profesor"
                       fill
                       className="object-cover absolute inset-0"
                     />
@@ -487,7 +552,7 @@ const TeacherFormTQ = ({
                     </svg>
                   </div>
                 )}
-                
+
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -495,7 +560,7 @@ const TeacherFormTQ = ({
                   accept="image/*"
                   className="hidden"
                 />
-                
+
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -532,7 +597,7 @@ const TeacherFormTQ = ({
                 </button>
               </div>
             </div>
-            
+
             {/* Columna de asignaturas */}
             <div className="w-full md:w-2/3 lg:w-3/4">
               <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
@@ -544,7 +609,7 @@ const TeacherFormTQ = ({
                 </div>
                 <span className="font-semibold text-gray-800 text-base sm:text-lg">Asignaturas *</span>
               </div>
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
                 {relatedData?.subjects && relatedData.subjects.length > 0 ? (
                   relatedData.subjects.map((subject) => (
@@ -578,7 +643,7 @@ const TeacherFormTQ = ({
           </div>
         </div>
       </div>
-      
+
       {/* Mostrar error personalizado si existe */}
       {customError && (
         <div className="bg-red-50 border border-red-200 text-red-600 p-4 rounded-xl shadow-sm flex items-center gap-3 animate-pulse w-full">
@@ -591,10 +656,10 @@ const TeacherFormTQ = ({
           </div>
         </div>
       )}
-      
+
       <div className="flex flex-col sm:flex-row gap-4 sm:justify-end mt-2 pb-2 w-full">
-        <button 
-          type="button" 
+        <button
+          type="button"
           className="py-3 px-6 sm:px-8 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-100 transition-all duration-300 font-medium text-base shadow-sm hover:shadow-md hover:border-gray-400 flex items-center justify-center gap-2 w-full sm:w-auto"
           onClick={() => setOpen(false)}
         >
@@ -604,8 +669,8 @@ const TeacherFormTQ = ({
           </svg>
           Cancelar
         </button>
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           className="py-3 px-8 sm:px-10 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center justify-center gap-2 font-medium text-base shadow-md hover:shadow-lg disabled:opacity-70 disabled:pointer-events-none w-full sm:w-auto sm:min-w-[200px] transform hover:-translate-y-1 active:translate-y-0"
           disabled={isLoading}
         >
