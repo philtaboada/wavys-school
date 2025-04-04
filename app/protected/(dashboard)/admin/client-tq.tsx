@@ -6,6 +6,7 @@ import CountChartContainerTQ from "@/components/CountChartContainerTQ";
 import EventCalendarContainerTQ from "@/components/EventCalendarContainerTQ";
 import FinanceChartTQ from "@/components/FinanceChartTQ";
 import AnnouncementsTQ from "@/components/AnnouncementsTQ";
+import QrScanner from "@/components/QrScanner";
 
 interface AdminPageTQProps {
   searchParams: { [keys: string]: string | undefined };
@@ -18,6 +19,9 @@ export default function AdminPageTQ({ searchParams }: AdminPageTQProps) {
       <div className="w-full lg:w-2/3 flex flex-col gap-8">
         {/* USER CARDS */}
         <div className="flex gap-4 justify-between flex-wrap">
+          {/* USER CARDS FOR ADMIN*/}
+          <QrScanner />
+          {/* USER CARDS FOR ADMIN, TEACHER, STUDENT AND PARENT */}
           <UserCardTQ type="Admin" />
           <UserCardTQ type="Teacher" />
           <UserCardTQ type="Student" />
@@ -41,7 +45,7 @@ export default function AdminPageTQ({ searchParams }: AdminPageTQProps) {
       </div>
       {/* RIGHT */}
       <div className="w-full lg:w-1/3 flex flex-col gap-8">
-        <EventCalendarContainerTQ searchParams={searchParams}/>
+        <EventCalendarContainerTQ searchParams={searchParams} />
         <AnnouncementsTQ />
       </div>
     </div>
