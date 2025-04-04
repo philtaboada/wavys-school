@@ -22,18 +22,18 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
         // Filtro explícito por profesor
         const { data: teacherSubjects } = await supabase
           .from('subject_teacher')
-          .select('subjectId')
-          .eq('teacherId', teacherId);
-        subjectIdsFromFilter = teacherSubjects?.map(ts => ts.subjectId) || [];
+          .select('subject_id') // Cambiado de subjectId a subject_id
+          .eq('teacher_id', teacherId); // Cambiado de teacherId a teacher_id
+        subjectIdsFromFilter = teacherSubjects?.map(ts => ts.subject_id) || [];
         if (subjectIdsFromFilter.length === 0) return { data: [], count: 0 };
       } else if (userRole && userRole !== 'admin' && userId) {
         // Filtros basados en el rol del usuario logueado
         if (userRole === 'teacher') {
           const { data: teacherSubjects } = await supabase
             .from('subject_teacher')
-            .select('subjectId')
-            .eq('teacherId', userId);
-          subjectIdsFromFilter = teacherSubjects?.map(ts => ts.subjectId) || [];
+            .select('subject_id') // Cambiado de subjectId a subject_id
+            .eq('teacher_id', userId); // Cambiado de teacherId a teacher_id
+          subjectIdsFromFilter = teacherSubjects?.map(ts => ts.subject_id) || [];
           if (subjectIdsFromFilter.length === 0) return { data: [], count: 0 };
         } else if (userRole === 'student') {
           const { data: studentData } = await supabase.from('Student').select('classId').eq('id', userId).single();
@@ -53,7 +53,7 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
               subjectIdsFromFilter = classSubjects?.map(cs => cs.subjectId) || [];
               if (subjectIdsFromFilter.length === 0) return { data: [], count: 0 };
             } else {
-                 return { data: [], count: 0 };
+              return { data: [], count: 0 };
             }
           } else {
             return { data: [], count: 0 };
@@ -67,8 +67,8 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
         .select(`
           id,
           name,
-          teachers:subject_teacher!inner (
-             teacher: Teacher!inner ( id, name, surname )
+          teachers:subject_teacher!left (
+            teacher: Teacher!left ( id, name, surname )
           )
         `, { count: 'exact' }); // count 'exact' en la tabla principal
 
@@ -81,7 +81,7 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
       if (subjectIdsFromFilter !== null) {
         query = query.in('id', subjectIdsFromFilter);
       }
-      
+
       // Si se filtra por teacherId explícito, asegurar que el join lo incluya
       // (Aunque el filtro .in('id', ...) ya debería cubrirlo si la lógica anterior es correcta)
       // Alternativa: query = query.eq('teachers.teacher.id', teacherId); pero puede ser menos eficiente
@@ -93,9 +93,9 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
 
       // Ejecutar la consulta única
       // Tipo intermedio para manejar la estructura anidada devuelta por Supabase
-       type SubjectWithNestedTeachers = Omit<Subject, 'teachers'> & {
-           teachers: { teacher: { id: string; name: string; surname: string } }[];
-       };
+      type SubjectWithNestedTeachers = Omit<Subject, 'teachers'> & {
+        teachers: { teacher: { id: string; name: string; surname: string } }[];
+      };
       const { data, error, count } = await query.returns<SubjectWithNestedTeachers[]>();
 
       if (error) {
@@ -108,7 +108,7 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
         id: subject.id,
         name: subject.name,
         // Usar Set para evitar duplicados si un profesor está múltiples veces (aunque no debería ocurrir con !inner)
-        teachers: Array.from(new Map(subject.teachers.map(t => [t.teacher.id, t.teacher])).values()) 
+        teachers: Array.from(new Map(subject.teachers.map(t => [t.teacher.id, t.teacher])).values())
       }));
 
       return {
@@ -155,8 +155,8 @@ export function useCreateSubject() {
       */
 
       const { data, error } = await supabase.rpc('create_subject_with_teachers', {
-          subject_name: name,
-          teacher_ids: teachers || []
+        subject_name: name,
+        teacher_ids: teachers || []
       });
 
       if (error) {
@@ -234,33 +234,33 @@ export function useUpdateSubject() {
       END;
       $$;
       */
-      
+
       // teachers puede ser undefined si no se modifican en el form
       // Si es undefined, podemos no pasarlo al RPC o pasar null/array vacío según defina el RPC
       // Aquí asumimos que si es undefined, no se deben tocar las relaciones existentes.
       // Si teachers es un array (incluso vacío), sí se deben sincronizar.
       if (teachers !== undefined) {
-           const { error } = await supabase.rpc('update_subject_with_teachers', {
-              subject_id_to_update: id,
-              new_subject_name: name,
-              new_teacher_ids: teachers || []
-           });
-           if (error) {
-              console.error("Error updating subject via RPC:", error);
-              throw new Error(`Error al actualizar asignatura: ${error.message}`);
-           }
+        const { error } = await supabase.rpc('update_subject_with_teachers', {
+          subject_id_to_update: id,
+          new_subject_name: name,
+          new_teacher_ids: teachers || []
+        });
+        if (error) {
+          console.error("Error updating subject via RPC:", error);
+          throw new Error(`Error al actualizar asignatura: ${error.message}`);
+        }
       } else {
-           // Si teachers es undefined, solo actualizar el nombre
-            const { error } = await supabase
-              .from('Subject')
-              .update({ name })
-              .eq('id', id)
-              .select('id')
-              .single();
-             if (error) {
-                 console.error("Error updating subject name only:", error);
-                 throw new Error(`Error al actualizar nombre de asignatura: ${error.message}`);
-            }
+        // Si teachers es undefined, solo actualizar el nombre
+        const { error } = await supabase
+          .from('Subject')
+          .update({ name })
+          .eq('id', id)
+          .select('id')
+          .single();
+        if (error) {
+          console.error("Error updating subject name only:", error);
+          throw new Error(`Error al actualizar nombre de asignatura: ${error.message}`);
+        }
       }
 
       return { id }; // Devolver el ID como confirmación
@@ -300,7 +300,7 @@ export function useUpdateSubject() {
     {
       invalidateQueries: [['subject', 'list']],
       onError: (error) => {
-         console.error("Mutation error (Update Subject):", error);
+        console.error("Mutation error (Update Subject):", error);
       }
     }
   );
@@ -313,37 +313,37 @@ export function useDeleteSubject() {
   return useSupabaseMutation<{ id: number }, void>(
     async (supabase, { id }) => {
 
-       // **Optimización: Usar RPC para eliminar relaciones y asignatura en transacción**
-       /*
-       CREATE OR REPLACE FUNCTION delete_subject_and_relations(subject_id_to_delete int)
-       RETURNS void
-       LANGUAGE plpgsql
-       AS $$
-       BEGIN
-         -- Verificar si hay Lecciones o Examenes/Tareas asociadas (opcional, pero recomendado)
-         IF EXISTS (SELECT 1 FROM public."Lesson" WHERE "subjectId" = subject_id_to_delete) THEN
-           RAISE EXCEPTION 'SUBJECT_HAS_LESSONS';
-         END IF;
-         -- Puedes añadir más verificaciones si es necesario (ej. exámenes directamente ligados)
+      // **Optimización: Usar RPC para eliminar relaciones y asignatura en transacción**
+      /*
+      CREATE OR REPLACE FUNCTION delete_subject_and_relations(subject_id_to_delete int)
+      RETURNS void
+      LANGUAGE plpgsql
+      AS $$
+      BEGIN
+        -- Verificar si hay Lecciones o Examenes/Tareas asociadas (opcional, pero recomendado)
+        IF EXISTS (SELECT 1 FROM public."Lesson" WHERE "subjectId" = subject_id_to_delete) THEN
+          RAISE EXCEPTION 'SUBJECT_HAS_LESSONS';
+        END IF;
+        -- Puedes añadir más verificaciones si es necesario (ej. exámenes directamente ligados)
 
-         -- Eliminar relaciones profesor-asignatura
-         DELETE FROM public.subject_teacher WHERE "subjectId" = subject_id_to_delete;
-         -- Eliminar relaciones clase-asignatura
-         DELETE FROM public."ClassSubject" WHERE "subjectId" = subject_id_to_delete;
-         -- Eliminar la asignatura
-         DELETE FROM public."Subject" WHERE id = subject_id_to_delete;
-       END;
-       $$;
-       */
-       const { error } = await supabase.rpc('delete_subject_and_relations', { subject_id_to_delete: id });
+        -- Eliminar relaciones profesor-asignatura
+        DELETE FROM public.subject_teacher WHERE "subjectId" = subject_id_to_delete;
+        -- Eliminar relaciones clase-asignatura
+        DELETE FROM public."ClassSubject" WHERE "subjectId" = subject_id_to_delete;
+        -- Eliminar la asignatura
+        DELETE FROM public."Subject" WHERE id = subject_id_to_delete;
+      END;
+      $$;
+      */
+      const { error } = await supabase.rpc('delete_subject_and_relations', { subject_id_to_delete: id });
 
-        if (error) {
-            if (error.message.includes('SUBJECT_HAS_LESSONS')) {
-               throw new Error('SUBJECT_HAS_LESSONS'); // Error específico
-            }
-            console.error("Error deleting subject via RPC:", error);
-            throw new Error(`Error al eliminar asignatura: ${error.message}`);
+      if (error) {
+        if (error.message.includes('SUBJECT_HAS_LESSONS')) {
+          throw new Error('SUBJECT_HAS_LESSONS'); // Error específico
         }
+        console.error("Error deleting subject via RPC:", error);
+        throw new Error(`Error al eliminar asignatura: ${error.message}`);
+      }
 
       // Código Original (menos seguro)
       /*
@@ -367,7 +367,7 @@ export function useDeleteSubject() {
     {
       invalidateQueries: [['subject', 'list']],
       onError: (error) => {
-         console.error("Mutation error (Delete Subject):", error);
+        console.error("Mutation error (Delete Subject):", error);
       }
     }
   );

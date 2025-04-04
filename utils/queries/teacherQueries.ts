@@ -47,7 +47,7 @@ export interface CreateTeacherParams {
  */
 export function useTeacherList(params: { page: number; search?: string; userRole?: string; userId?: string }) {
   const { page, search, userRole, userId } = params;
-  
+
   return useSupabaseQuery<{ data: any[]; count: number }>(
     ['teacher', 'list', page, search, userRole, userId],
     async (supabase) => {
@@ -69,7 +69,7 @@ export function useTeacherList(params: { page: number; search?: string; userRole
             if (userRole === 'teacher') {
               // Si el usuario es profesor, solo puede ver su propio perfil
               query = query.eq('id', userId);
-            } 
+            }
             else if (userRole === 'student') {
               // Obtener los profesores de las clases a las que pertenece el estudiante
               const { data: studentData } = await supabase
@@ -77,14 +77,14 @@ export function useTeacherList(params: { page: number; search?: string; userRole
                 .select('classId')
                 .eq('id', userId)
                 .single();
-              
+
               if (studentData && studentData.classId) {
                 // Obtener lecciones de la clase del estudiante
                 const { data: lessonsData } = await supabase
                   .from('Lesson')
                   .select('teacherId')
                   .eq('classId', studentData.classId);
-                
+
                 if (lessonsData && lessonsData.length > 0) {
                   const teacherIds = lessonsData.map(lesson => lesson.teacherId);
                   query = query.in('id', teacherIds);
@@ -94,23 +94,23 @@ export function useTeacherList(params: { page: number; search?: string; userRole
               } else {
                 return { data: [], count: 0 };
               }
-            } 
+            }
             else if (userRole === 'parent') {
               // Obtener los estudiantes del padre
               const { data: parentStudents } = await supabase
                 .from('Student')
                 .select('classId')
                 .eq('parentId', userId);
-              
+
               if (parentStudents && parentStudents.length > 0) {
                 const classIds = parentStudents.map(student => student.classId);
-                
+
                 // Obtener lecciones de las clases de los estudiantes
                 const { data: lessonsData } = await supabase
                   .from('Lesson')
                   .select('teacherId')
                   .in('classId', classIds);
-                
+
                 if (lessonsData && lessonsData.length > 0) {
                   const teacherIds = lessonsData.map(lesson => lesson.teacherId);
                   query = query.in('id', teacherIds);
@@ -134,9 +134,9 @@ export function useTeacherList(params: { page: number; search?: string; userRole
             throw new Error(`Error al obtener datos de profesores: ${error.message}`);
           }
 
-          return { 
-            data: data || [], 
-            count: count || 0 
+          return {
+            data: data || [],
+            count: count || 0
           };
         };
 
@@ -235,45 +235,45 @@ export function useDeleteTeacher() {
         .from('Class')
         .select('id', { count: 'exact', head: true })
         .eq('supervisorId', id);
-      
+
       if (classesError) {
         throw new Error(`Error al verificar clases supervisadas: ${classesError.message}`);
       }
-      
+
       if (classesCount && classesCount > 0) {
         throw new Error(`No se puede eliminar al profesor porque supervisa ${classesCount} clases`);
       }
-      
+
       // Verificar si el profesor tiene lecciones asignadas
       const { count: lessonsCount, error: lessonsError } = await supabase
         .from('Lesson')
         .select('id', { count: 'exact', head: true })
         .eq('teacherId', id);
-      
+
       if (lessonsError) {
         throw new Error(`Error al verificar lecciones: ${lessonsError.message}`);
       }
-      
+
       if (lessonsCount && lessonsCount > 0) {
         throw new Error(`No se puede eliminar al profesor porque tiene ${lessonsCount} lecciones asignadas`);
       }
-      
+
       // Eliminar asignaciones de materias primero
       const { error: subjectTeacherError } = await supabase
         .from('subject_teacher')
         .delete()
         .eq('teacherId', id);
-      
+
       if (subjectTeacherError) {
         throw new Error(`Error al eliminar asignaciones de materias: ${subjectTeacherError.message}`);
       }
-      
+
       // Finalmente eliminar al profesor
       const { error } = await supabase
         .from('Teacher')
         .delete()
         .eq('id', id);
-      
+
       if (error) {
         throw new Error(`Error al eliminar profesor: ${error.message}`);
       }
@@ -341,9 +341,17 @@ export function useUpdateTeacher() {
 
       // 3. Actualizar asignaturas (método: borrar todo y reinsertar)
       if (subjects && Array.isArray(subjects)) {
-        const newSubjectIds = subjects
-          .map((s: any) => (typeof s === 'object' && s !== null && s.id !== undefined ? s.id : s))
-          .filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+        const newSubjectIds = subjects.map(s => {
+          if (typeof s === 'object' && s !== null && s.id !== undefined) {
+            return typeof s.id === 'string' ? parseInt(s.id, 10) : s.id;
+          }
+          return typeof s === 'string' ? parseInt(s, 10) : s;
+        })
+          .filter(id => typeof id === 'number' && !isNaN(id));
+        // .map((s: any) => (typeof s === 'object' && s !== null && s.id !== undefined ? s.id : s))
+        // .filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+
+        console.log(`[useUpdateTeacher] Asignaturas procesadas para actualizar:`, newSubjectIds);
 
         // Borrar todas las asignaturas existentes para este profesor
         const { error: deleteError } = await supabase
@@ -358,7 +366,10 @@ export function useUpdateTeacher() {
 
         // Insertar las nuevas asignaturas si hay alguna
         if (newSubjectIds.length > 0) {
-          const insertData = newSubjectIds.map((subjectId: number) => ({ teacherId: id, subjectId }));
+          const insertData = newSubjectIds.map(subjectId => ({ teacherId: id, subjectId: subjectId }));
+
+          console.log(`[useUpdateTeacher] Insertando nuevas asignaturas:`, insertData);
+
           const { error: addError } = await supabase
             .from('subject_teacher')
             .insert(insertData);
@@ -379,7 +390,7 @@ export function useUpdateTeacher() {
         queryClient.invalidateQueries({ queryKey: ['teacher', 'list'] });
       },
       onError: (error, variables) => {
-         console.error(`Error completo al actualizar profesor ${variables.id}:`, error);
+        console.error(`Error completo al actualizar profesor ${variables.id}:`, error);
       }
     }
   );
@@ -391,18 +402,22 @@ export function useUpdateTeacher() {
 export function useCreateTeacher() {
   return useSupabaseMutation<CreateTeacherParams, { id: string }>(
     async (supabase, params) => {
-      // 1. Validar email y password
-      if (!params.email || !params.password) {
-        throw new Error('Email y contraseña son obligatorios para crear un profesor.');
+
+      //Extraer datos necesarios
+      const { subjects = [], password, ...teacherData } = params;
+
+      // 1. Validar datos requeridos
+      if (!teacherData.email || !password || !teacherData.username) {
+        throw new Error('Email, contraseña y usuario son obligatorios para crear un profesor.');
       }
 
       // 2. Crear el usuario en Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: params.email,
-        password: params.password,
+        email: teacherData.email,
+        password: password,
         options: {
           data: { // Metadatos van dentro de 'data'
-            app_metadata: { 
+            app_metadata: {
               role: 'teacher'
             }
           }
@@ -425,61 +440,112 @@ export function useCreateTeacher() {
       const userId = authData.user.id;
       console.log(`[useCreateTeacher] User ID obtained: ${userId}`);
 
-      // 3. Preparar datos para insertar en la tabla Teacher
-      const teacherInsertData = {
-        id: userId, 
-        username: params.username,
-        name: params.name,
-        surname: params.surname,
-        email: params.email, 
-        phone: params.phone,
-        address: params.address,
-        bloodType: params.bloodType,
-        sex: params.sex,
-        birthday: params.birthday,
-        img: params.img,
-        imgPath: params.imgPath
-      };
-
-      console.log('[useCreateTeacher] Data prepared for Teacher insert:', teacherInsertData);
-
-      // Intentar insertar en la tabla Teacher
-      console.log('[useCreateTeacher] Attempting to insert into Teacher table...');
-      const { data, error: teacherInsertError } = await supabase
+      //3. Insertar datos del profesor
+      const { error: teacherError } = await supabase
         .from('Teacher')
-        .insert(teacherInsertData)
-        .select('id');
+        .insert([{
+          ...teacherData,
+          id: userId
+        }]);
 
-      // Verificar error de inserción
-      if (teacherInsertError) {
-        console.error(`[useCreateTeacher] Error inserting teacher profile for user ${userId}:`, teacherInsertError);
-        // Podríamos intentar eliminar el usuario de Auth aquí si la inserción del perfil falla,
-        // pero por ahora solo lanzamos el error.
-        throw new Error(`Error al crear el perfil del profesor: ${teacherInsertError.message}`);
+      if (teacherError) {
+        //Si falla la insercion del profesor, elimina el usuario auth
+        await supabase.auth.admin.deleteUser(userId);
+        throw new Error(`Error al insertar datos del profesor: ${teacherError.message}`);
       }
 
-      console.log(`[useCreateTeacher] Teacher profile inserted successfully for user ${userId}`);
+      // 4. Asignar materias si existen
+      if (subjects && subjects.length > 0) {
+        try {
+          console.log("[useCreateTeacher] Procesando las asignaturas:", subjects);
 
-      // 4. Asignar asignaturas si se proporcionan
-      if (params.subjects && params.subjects.length > 0) {
-        const subjectTeacherData = params.subjects.map((subjectId: number) => ({
-          teacherId: userId, // Usar el userId
-          subjectId
-        }));
+          // Preparar los datos para la inserción usando snake_case para los nombres de columnas
+          const subjectTeacherData = subjects.map(subjectId => ({
+            teacherId: userId,  // Cambiado de teacherId a teacher_id
+            subjectId: subjectId // Cambiado de subjectId a subject_id
+          }));
 
-        const { error: subjectTeacherError } = await supabase
-          .from('subject_teacher')
-          .insert(subjectTeacherData);
+          console.log('[useCreateTeacher] Insertar asignaturas relacionadas:', subjectTeacherData);
 
-        if (subjectTeacherError) {
-          // Similar al error de inserción del perfil, podríamos revertir pasos anteriores.
-          console.error(`Error al asignar materias al profesor ${userId}:`, subjectTeacherError);
-          throw new Error(`Error al asignar materias: ${subjectTeacherError.message}`);
+          // Insertar las relaciones profesor-asignatura
+          const { error: subjectError } = await supabase
+            .from('subject_teacher')
+            .insert(subjectTeacherData);
+
+          if (subjectError) {
+            console.error('[useCreateTeacher] Error al asignar materias:', subjectError);
+            // No lanzamos error para no revertir la creación del profesor
+          } else {
+            console.log('[useCreateTeacher] Subjects assigned successfully');
+          }
+        } catch (error) {
+          console.error('[useCreateTeacher] Error al asignar materias:', error);
         }
       }
 
-      // 5. Retornar el ID del profesor (que es el userId)
       return { id: userId };
+
+      // 3. Preparar datos para insertar en la tabla Teacher
+      // const teacherInsertData = {
+      //   id: userId,
+      //   username: params.username,
+      //   name: params.name,
+      //   surname: params.surname,
+      //   email: params.email,
+      //   phone: params.phone || null,
+      //   address: params.address,
+      //   bloodType: params.bloodType,
+      //   sex: params.sex,
+      //   birthday: params.birthday,
+      //   // subjects: params.subjects || [],
+      //   img: params.img || null,
+      //   imgPath: params.imgPath || null
+      // };
+
+      // console.log('[useCreateTeacher] Data prepared for Teacher insert:', teacherInsertData);
+
+      // 4. Intentar insertar en la tabla Teacher
+      // console.log('[useCreateTeacher] Attempting to insert into Teacher table...');
+      // const { error: teacherInsertError } = await supabase
+      //   .from('Teacher')
+      //   .insert([{
+      //     ...teacherData,
+      //     id: authData.user.id,
+      //     img: img || null
+      //   }]);
+      // .select('id');
+
+      // Verificar error de inserción
+      // if (teacherInsertError) {
+      //   console.error(`[useCreateTeacher] Error inserting teacher profile for user ${userId}:`, teacherInsertError);
+      //   // Podríamos intentar eliminar el usuario de Auth aquí si la inserción del perfil falla
+      //   await supabase.auth.admin.deleteUser(userId);
+      //   // lanzamos el error.
+      //   throw new Error(`Error al crear el perfil del profesor: ${teacherInsertError.message}`);
+      // }
+
+      // console.log(`[useCreateTeacher] Teacher profile inserted successfully for user ${userId}`);
+
+      // 5. Asignar asignaturas si se proporcionan
+      // if (params.subjects && params.subjects.length > 0) {
+      //   const subjectTeacherData = params.subjects.map(subjectId => ({
+      //     teacherId: userId, // Usar el userId
+      //     subjectId: typeof subjectId === 'object' ? subjectId.id : subjectId
+      //   }));
+
+      //   const { error: subjectTeacherError } = await supabase
+      //     .from('subject_teacher')
+      //     .insert(subjectTeacherData);
+
+      //   if (subjectTeacherError) {
+      //     // Similar al error de inserción del perfil, podríamos revertir pasos anteriores.
+      //     console.error(`Error al asignar materias al profesor ${userId}:`, subjectTeacherError);
+      //     throw new Error(`Error al asignar materias: ${subjectTeacherError.message}`);
+      //   }
+      // }
+
+      // 5. Retornar el ID del profesor (que es el userId)
+      // return { id: userId };
     },
     {
       invalidateQueries: [['teacher', 'list']],
