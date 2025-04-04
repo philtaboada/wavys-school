@@ -4,7 +4,9 @@ import NavbarToggleButton from "./NavbarToggleButton";
 import { ThemeSwitcher } from "./theme-switcher";
 import UserMenu from "./UserMenu";
 import RoleNavbar from "./RoleNavbar";
-const Navbar = async () => {
+import NavbarAnnouncement from "./announcements/NavbarAnnouncement";
+
+const Navbar = () => {
 
   return (
     <div className="flex items-center justify-between p-4 bg-white">
@@ -28,12 +30,7 @@ const Navbar = async () => {
         <div className="bg-white rounded-full w-7 h-7 flex items-center justify-center cursor-pointer shadow-sm">
           <Image src="/message.png" alt="" width={20} height={20} />
         </div>
-        <div className="bg-white rounded-full w-7 h-7 flex items-center justify-center cursor-pointer relative shadow-sm">
-          <Image src="/announcement.png" alt="" width={20} height={20} />
-          <div className="absolute -top-3 -right-3 w-5 h-5 flex items-center justify-center bg-lamaSky text-white rounded-full text-xs">
-            1
-          </div>
-        </div>
+        <NavbarAnnouncement />
         <RoleNavbar />
         {/*<RoleNavbar />*/}
         {/*<UserMenu />*/}
