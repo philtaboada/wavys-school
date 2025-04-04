@@ -341,9 +341,17 @@ export function useUpdateTeacher() {
 
       // 3. Actualizar asignaturas (método: borrar todo y reinsertar)
       if (subjects && Array.isArray(subjects)) {
-        const newSubjectIds = subjects
-          .map((s: any) => (typeof s === 'object' && s !== null && s.id !== undefined ? s.id : s))
-          .filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+        const newSubjectIds = subjects.map(s => {
+          if (typeof s === 'object' && s !== null && s.id !== undefined) {
+            return typeof s.id === 'string' ? parseInt(s.id, 10) : s.id;
+          }
+          return typeof s === 'string' ? parseInt(s, 10) : s;
+        })
+          .filter(id => typeof id === 'number' && !isNaN(id));
+        // .map((s: any) => (typeof s === 'object' && s !== null && s.id !== undefined ? s.id : s))
+        // .filter((id): id is number => typeof id === 'number' && Number.isInteger(id));
+
+        console.log(`[useUpdateTeacher] Asignaturas procesadas para actualizar:`, newSubjectIds);
 
         // Borrar todas las asignaturas existentes para este profesor
         const { error: deleteError } = await supabase
@@ -358,7 +366,10 @@ export function useUpdateTeacher() {
 
         // Insertar las nuevas asignaturas si hay alguna
         if (newSubjectIds.length > 0) {
-          const insertData = newSubjectIds.map((subjectId: number) => ({ teacherId: id, subjectId }));
+          const insertData = newSubjectIds.map(subjectId => ({ teacherId: id, subjectId: subjectId }));
+
+          console.log(`[useUpdateTeacher] Insertando nuevas asignaturas:`, insertData);
+
           const { error: addError } = await supabase
             .from('subject_teacher')
             .insert(insertData);
@@ -446,20 +457,29 @@ export function useCreateTeacher() {
       // 4. Asignar materias si existen
       if (subjects && subjects.length > 0) {
         try {
+          console.log("[useCreateTeacher] Procesando las asignaturas:", subjects);
+
+          // Preparar los datos para la inserción usando snake_case para los nombres de columnas
           const subjectTeacherData = subjects.map(subjectId => ({
-            teacherId: userId,
-            subjectId
+            teacherId: userId,  // Cambiado de teacherId a teacher_id
+            subjectId: subjectId // Cambiado de subjectId a subject_id
           }));
 
+          console.log('[useCreateTeacher] Insertar asignaturas relacionadas:', subjectTeacherData);
+
+          // Insertar las relaciones profesor-asignatura
           const { error: subjectError } = await supabase
             .from('subject_teacher')
             .insert(subjectTeacherData);
 
           if (subjectError) {
-            console.error('Error al asignar materias:', subjectError);
+            console.error('[useCreateTeacher] Error al asignar materias:', subjectError);
+            // No lanzamos error para no revertir la creación del profesor
+          } else {
+            console.log('[useCreateTeacher] Subjects assigned successfully');
           }
         } catch (error) {
-          console.error('Error al asignar materias:', error);
+          console.error('[useCreateTeacher] Error al asignar materias:', error);
         }
       }
 

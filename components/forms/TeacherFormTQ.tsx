@@ -90,22 +90,27 @@ const TeacherFormTQ = ({
   const router = useRouter();
 
   const onSubmit = handleSubmit((formData) => {
-    setCustomError(null);
-    console.log('Formulario de datos antes del envío:', formData);
+    try {
+      setIsUploading(true);
+      setCustomError(null);
 
-    // Validar los campos requeridos
-    if (!formData.username || !formData.email || !formData.name || !formData.surname) {
-      setCustomError("Complete todos los campos requeridos");
-      return;
-    }
+      console.log('Formulario de datos antes del envío:', formData);
 
-    // Para la creación, convertimos los IDs de string a number
-    // const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+      // Validar los campos requeridos
+      if (!formData.username || !formData.email || !formData.name || !formData.surname) {
+        setCustomError("Complete todos los campos requeridos");
+        return;
+      }
+
+      // Para la creación, convertimos los IDs de string a number
+      // const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
 
     // TODO: Para la creación, convierte las ID de sujeto de cadena a número y filtra valores no válidos
-    // const numericSubjects = formData.subjects
-    //   ?.filter(id => id && !isNaN(parseInt(id, 10)))
-    //   .map(id => parseInt(id, 10)) || [];
+    const subjects = formData.subjects
+      ? formData.subjects.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => !isNaN(id))
+      : [];
+
+    console.log("Asignaturas procesadas:", subjects);
     
     // Preparar los datos del profesor
     const teacherData = {
@@ -118,54 +123,96 @@ const TeacherFormTQ = ({
       bloodType: formData.bloodType?.trim() || "",
       sex: formData.sex || "",
       birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : null,
-      subjects: formData.subjects?.filter(id => id && !isNaN(parseInt(id, 10))).map(id => parseInt(id, 10)) || []
+      subjects: subjects
       // img: img?.url || null,
       // imgPath: img?.path || null
     };
 
-    if (type === "create") {
-      if (!formData.password) {
-        setCustomError("La contraseña es obligatoria");
-        return;
+    console.log('Datos procesados para enviar:', teacherData);
+
+      if (type === 'create') {
+        console.log('Enviando datos para crear profesor:', teacherData);
+        createMutation.mutate({
+          ...teacherData,
+          password: formData.password || ''
+        }, {
+          onSuccess: () => {
+            toast.success('Profesor creado exitosamente');
+            setOpen(false);
+            router.refresh();
+          },
+          onError: (error) => {
+            setCustomError(error.message);
+            setIsUploading(false);
+          }
+        });
+      } else if (type === 'update' && data?.id) {
+        updateMutation.mutate({
+          ...teacherData,
+          id: data.id,
+          password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
+        }, {
+          onSuccess: () => {
+            toast.success("Profesor actualizado exitosamente");
+            setOpen(false);
+            router.refresh();
+            setIsUploading(false);
+          },
+          onError: (error) => {
+            console.error('Error al actualizar el profesor:', error);
+            setCustomError(error.message);
+            setIsUploading(false);
+          }
+        });
       }
+  } catch (error) {
+    console.error('Error en onSubmit:', error);
+    setCustomError((error as Error).message);
+      setIsUploading(false);
+  }
+    // if (type === "create") {
+    //   if (!formData.password) {
+    //     setCustomError("La contraseña es obligatoria");
+    //     return;
+    //   }
 
-      console.log('Enviando datos para crear profesor:', {...teacherData, password: '***'});
+    //   console.log('Enviando datos para crear profesor:', {...teacherData, password: '***'});
 
-      createMutation.mutate({
-        ...teacherData,
-        password: formData.password
-      }, {
-        onSuccess: (data) => {
-          console.log('Profesor creado con ID:', data.id);
-          toast.success("Profesor creado correctamente");
-          reset();
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          console.error('Error al crear el profesor:', error);
-          setCustomError(error.message);
-          toast.error("Error al crear el profesor");
-        }
-      });
-    } else if (formData.id) {
-      updateMutation.mutate({
-        ...teacherData,
-        id: formData.id,
-        password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
-      }, {
-        onSuccess: () => {
-          toast.success("Profesor actualizado correctamente");
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          console.error('Error al actualizar el profesor:', error);
-          setCustomError(error.message);
-          toast.error("Error al actualizar el profesor");
-        }
-      });
-    }
+    //   createMutation.mutate({
+    //     ...teacherData,
+    //     password: formData.password
+    //   }, {
+    //     onSuccess: (data) => {
+    //       console.log('Profesor creado con ID:', data.id);
+    //       toast.success("Profesor creado correctamente");
+    //       reset();
+    //       setOpen(false);
+    //       router.refresh();
+    //     },
+    //     onError: (error) => {
+    //       console.error('Error al crear el profesor:', error);
+    //       setCustomError(error.message);
+    //       toast.error("Error al crear el profesor");
+    //     }
+    //   });
+    // } else if (formData.id) {
+    //   updateMutation.mutate({
+    //     ...teacherData,
+    //     id: formData.id,
+    //     password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual  
+    //   }, {
+    //     onSuccess: () => {
+    //       toast.success("Profesor actualizado correctamente");
+    //       setOpen(false);
+    //       router.refresh();
+    //     },
+    //     onError: (error) => {
+    //       console.error('Error al actualizar el profesor:', error);
+    //       setCustomError(error.message);
+    //       toast.error("Error al actualizar el profesor");
+    //     }
+    //   });
+    // }
   });
 
   // Función para manejar la carga de imágenes con Google Cloud Storage
