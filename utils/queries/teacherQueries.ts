@@ -353,6 +353,11 @@ export function useUpdateTeacher() {
 
         console.log(`[useUpdateTeacher] Asignaturas procesadas para actualizar:`, newSubjectIds);
 
+        //Eliminar duplicados para evitar errores
+        const uniqueSubjectIds = newSubjectIds.filter((value, index, self) => self.indexOf(value) === index);
+
+        console.log(`[useUpdateTeacher] Asignaturas únicas para actualizar:`, uniqueSubjectIds);
+
         // Borrar todas las asignaturas existentes para este profesor
         const { error: deleteError } = await supabase
           .from('subject_teacher')
@@ -365,8 +370,8 @@ export function useUpdateTeacher() {
         }
 
         // Insertar las nuevas asignaturas si hay alguna
-        if (newSubjectIds.length > 0) {
-          const insertData = newSubjectIds.map(subjectId => ({ teacherId: id, subjectId: subjectId }));
+        if (uniqueSubjectIds.length > 0) {
+          const insertData = uniqueSubjectIds.map(subjectId => ({ teacherId: id, subjectId: subjectId }));
 
           console.log(`[useUpdateTeacher] Insertando nuevas asignaturas:`, insertData);
 
@@ -459,8 +464,13 @@ export function useCreateTeacher() {
         try {
           console.log("[useCreateTeacher] Procesando las asignaturas:", subjects);
 
+          //Asegurarnos de que los ID sean numeros
+          const numericSubjects = subjects.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => !isNaN(id));
+
+          console.log("[useCreateTeacher] Asignaturas procesadas:", numericSubjects);
+
           // Preparar los datos para la inserción usando snake_case para los nombres de columnas
-          const subjectTeacherData = subjects.map(subjectId => ({
+          const subjectTeacherData = numericSubjects.map(subjectId => ({
             teacherId: userId,  // Cambiado de teacherId a teacher_id
             subjectId: subjectId // Cambiado de subjectId a subject_id
           }));
