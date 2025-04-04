@@ -4,7 +4,7 @@ import NavbarToggleButton from "./NavbarToggleButton";
 import { ThemeSwitcher } from "./theme-switcher";
 import UserMenu from "./UserMenu";
 import RoleNavbar from "./RoleNavbar";
-import NavbarAnnouncement from "./notificatios/NavbarAnnouncement";
+import NavbarAnnouncement from "./announcements/NavbarAnnouncement";
 
 const Navbar = () => {
 
