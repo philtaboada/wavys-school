@@ -43,15 +43,17 @@ const AnnouncementCard = ({ announcement, activeTab, onMarkAsRead, onDelete }: A
               <h3 className="font-semibold text-sm lg:text-base text-gray-900 dark:text-white flex items-center gap-2">
                 {announcement.title}
                 {!announcement.read && activeTab === 'all' && (
-                  <span className="hidden lg:inline-block text-xs font-normal text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-600 px-1.5 md:px-2 py-0.5 rounded-full">
+                  <span className="hidden lg:inline-block text-xs font-normal text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-600 px-1 md:px-2 py-0.5 rounded-full">
                     No leído
                   </span>
                 )}
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] lg:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {announcement.date}
+              <span className="text-[8px] lg:text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                {
+                  announcement.date ? new Intl.DateTimeFormat("es-ES").format(new Date(announcement.date)) : "-"
+                }
               </span>
               <div className="flex gap-1">
                 {!announcement.read && (
@@ -60,7 +62,7 @@ const AnnouncementCard = ({ announcement, activeTab, onMarkAsRead, onDelete }: A
                       e.stopPropagation();
                       onMarkAsRead(announcement.id);
                     }}
-                    className="p-1.5 text-xs text-gray-500 hover:text-green-500 dark:text-gray-400 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
+                    className="p-1 text-xs text-gray-500 hover:text-green-500 dark:text-gray-400 dark:hover:text-green-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors"
                     title="Marcar como leída"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
