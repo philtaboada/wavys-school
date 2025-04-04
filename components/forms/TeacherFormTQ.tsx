@@ -102,13 +102,16 @@ const TeacherFormTQ = ({
         return;
       }
 
-      // Para la creación, convertimos los IDs de string a number
-      // const numericSubjects = formData.subjects?.map(id => parseInt(id, 10));
+      // Asegurar de que subjects sea siempre un array, incluso si solo hay una selección
+    let subjects: number[] = [];
 
-    // TODO: Para la creación, convierte las ID de sujeto de cadena a número y filtra valores no válidos
-    const subjects = formData.subjects
-      ? formData.subjects.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => !isNaN(id))
-      : [];
+    if(formData.subjects) {
+      // Si es solo un valor, lo convertimos a un array
+      const subjectsInput = Array.isArray(formData.subjects) ? formData.subjects : [formData.subjects];
+      
+      // TODO: Para la creación, convierte las ID de sujeto de cadena a número y filtra valores no válidos
+      subjects = subjectsInput.map(id => typeof id === 'string' ? parseInt(id, 10) : id).filter(id => !isNaN(id));
+    }
 
     console.log("Asignaturas procesadas:", subjects);
     
