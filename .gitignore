@@ -46,3 +46,7 @@ auth-test-420114-a6d31b5cc686.json
 *.json.key
 *.p12
 *.pem
+
+# package-lock.json
+package-lock.json
+
