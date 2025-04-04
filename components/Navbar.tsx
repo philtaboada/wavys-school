@@ -4,7 +4,7 @@ import NavbarToggleButton from "./NavbarToggleButton";
 import { ThemeSwitcher } from "./theme-switcher";
 import UserMenu from "./UserMenu";
 import RoleNavbar from "./RoleNavbar";
-import NavbarNotification from "./notificatios/NavbarNotification";
+import NavbarAnnouncement from "./notificatios/NavbarAnnouncement";
 
 const Navbar = () => {
 
@@ -30,7 +30,7 @@ const Navbar = () => {
         <div className="bg-white rounded-full w-7 h-7 flex items-center justify-center cursor-pointer shadow-sm">
           <Image src="/message.png" alt="" width={20} height={20} />
         </div>
-        <NavbarNotification />
+        <NavbarAnnouncement />
         <RoleNavbar />
         {/*<RoleNavbar />*/}
         {/*<UserMenu />*/}

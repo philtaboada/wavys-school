@@ -1,57 +1,22 @@
-import { createClient } from "@/utils/supabase/server";
+'use client';
 
-const Announcements = async () => {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+import { useAnnouncements } from '@/hooks/useAnnouncements';
 
-  const userId = user?.id;
-  const role = (user?.user_metadata as { role?: string })?.role;
+const Announcements = () => {
+  const { announcements: data, loading } = useAnnouncements();
 
-  // Obtener clases relacionadas al usuario según su rol
-  let classIds: string[] = [];
-  
-  if (role !== 'admin') {
-    let classQuery;
-    
-    if (role === 'teacher') {
-      const { data: classes } = await supabase
-        .from('lessons')
-        .select('classId')
-        .eq('teacherId', userId);
-      
-      classIds = classes?.map(c => c.classId) || [];
-    } else if (role === 'student') {
-      const { data: classes } = await supabase
-        .from('students')
-        .select('classId')
-        .eq('id', userId);
-      
-      classIds = classes?.map(c => c.classId) || [];
-    } else if (role === 'parent') {
-      const { data: classes } = await supabase
-        .from('students')
-        .select('classId')
-        .eq('parentId', userId);
-      
-      classIds = classes?.map(c => c.classId) || [];
-    }
+  if (loading) {
+    return (
+      <div className="bg-white p-4 rounded-md">
+        <h1 className="text-xl font-semibold">Anuncios</h1>
+        <div className="flex flex-col gap-4 mt-4">
+          <div className="bg-gray-100 animate-pulse h-24 rounded-md"></div>
+          <div className="bg-gray-100 animate-pulse h-24 rounded-md"></div>
+          <div className="bg-gray-100 animate-pulse h-24 rounded-md"></div>
+        </div>
+      </div>
+    );
   }
-
-  // Consultar anuncios
-  let query = supabase
-    .from('announcement')
-    .select('*')
-    .order('date', { ascending: false })
-    .limit(3);
-
-  // Filtrar por clases si no es admin
-  if (role !== 'admin' && classIds.length > 0) {
-    query = query.or(`classId.is.null,classId.in.(${classIds.join(',')})`);
-  } else if (role !== 'admin') {
-    query = query.is('classId', null);
-  }
-
-  const { data } = await query;
 
   return (
     <div className="bg-white p-4 rounded-md">

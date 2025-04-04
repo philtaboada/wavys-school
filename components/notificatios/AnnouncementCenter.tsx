@@ -1,26 +1,26 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Notification } from '@/types/notifications';
+import { Announcement } from '@/types/announcement';
 import Link from "next/link";
-import NotificationCard from './NotificationCard';
+import AnnouncementCard from './AnnouncementCard';
 
-interface NotificationCenterProps {
+interface AnnouncementCenterProps {
   isOpen: boolean;
   onClose: () => void;
-  notifications: Notification[];
+  announcements: Announcement[];
   onMarkAsRead: (ids: number[]) => void;
   loading: boolean;
   error: string | null;
 }
 
-const NotificationCenter = ({
+const AnnouncementCenter = ({
   isOpen,
   onClose,
-  notifications,
+  announcements,
   onMarkAsRead,
   loading,
   error
-}: NotificationCenterProps) => {
+}: AnnouncementCenterProps) => {
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
   const [isVisible, setIsVisible] = useState(false);
   const [shouldRender, setShouldRender] = useState(false);
@@ -39,10 +39,10 @@ const NotificationCenter = ({
   if (!shouldRender) return null;
 
   const filteredNotifications = activeTab === 'unread'
-    ? notifications.filter(n => !n.read)
-    : notifications;
+    ? announcements.filter(n => !n.read)
+    : announcements;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+
 
   return (
     <div className="fixed inset-0 lg:absolute lg:inset-auto lg:right-0 lg:top-9 z-50">
@@ -92,17 +92,20 @@ const NotificationCenter = ({
                     }`}
                 >
                   No leídas
-                  {unreadCount > 0 && (
-                    <span className="px-2 py-0.5 text-xs bg-gray-700 text-white rounded-full">
-                      {unreadCount}
-                    </span>
+                  {announcements.filter(a => !a.read).length > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="px-2 py-0.5 text-xs bg-gray-700 text-white rounded-full">
+                        {announcements.filter(a => !a.read).length}
+                      </span> 
+                      <p className="text-[10px] lg:text-xs text-white">sin leer</p>
+                    </div>
                   )}
                 </button>
               </div>
-              {activeTab === 'unread' && unreadCount > 0 && (
+              {activeTab === 'unread' && announcements.filter(a => !a.read).length > 0 && (
                 <button
                   onClick={() => {
-                    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
+                    const unreadIds = announcements.filter(n => !n.read).map(n => n.id);
                     onMarkAsRead(unreadIds);
                     setActiveTab('all');
                   }}
@@ -116,10 +119,10 @@ const NotificationCenter = ({
 
           {/* Notifications List */}
           <div className="overflow-y-auto flex-1">
-            {filteredNotifications.map((notification) => (
-              <NotificationCard
-                key={notification.id}
-                notification={notification}
+            {filteredNotifications.map((announcement) => (
+              <AnnouncementCard
+                key={announcement.id}
+                announcement={announcement}
                 activeTab={activeTab}
                 onMarkAsRead={(id: number) => {
                   onMarkAsRead([id]);
@@ -147,4 +150,4 @@ const NotificationCenter = ({
   );
 };
 
-export default NotificationCenter;
+export default AnnouncementCenter;
