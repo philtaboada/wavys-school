@@ -1,20 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Html5QrcodeScanner } from "html5-qrcode";
 import { toast } from "sonner";
 import { Toaster } from "sonner";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-interface Student {
-  id: string;
-  name: string;
-}
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useCheckDailyAttendance,
+  useCreateAttendance,
+} from "@/utils/queries/attendanceQueries";
+import { useStudentDetails } from "@/utils/queries/studentQueries";
 
 interface ScanRecord {
   id: string;
@@ -24,116 +19,85 @@ interface ScanRecord {
   timestamp: string;
 }
 
-const QRScanner: React.FC = () => {
-  const [scanning, setScanning] = useState<boolean>(false);
-  const [scanStatus, setScanStatus] = useState<string>("");
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+const QRScanner = () => {
+  const queryClient = useQueryClient();
+  const [scanning, setScanning] = useState(false);
+  const [scanStatus, setScanStatus] = useState("");
+  const [isProcessing, setIsProcessing] = useState(false);
   const [scanHistory, setScanHistory] = useState<ScanRecord[]>([]);
-  const scannerRef = useRef<any>(null);
+  const [currentStudentId, setCurrentStudentId] = useState<string | null>(null);
+
+  const scannerRef = useRef<Html5QrcodeScanner | null>(null);
   const lastScannedRef = useRef<{ id: string; timestamp: number } | null>(null);
 
-  // Función para limpiar completamente el scanner
-  const clearScanner = async () => {
+  // Queries y mutaciones
+  const { data: studentDetails, error: studentError } = useStudentDetails(
+    currentStudentId || ""
+  );
+  const { data: attendanceExists, error: attendanceError } =
+    useCheckDailyAttendance(currentStudentId || "");
+  const { mutateAsync: createAttendance, error: createError } =
+    useCreateAttendance();
+
+  const clearScanner = () => {
     if (scannerRef.current) {
-      try {
-        await scannerRef.current.clear();
-      } catch (error) {
-        console.error("Error al limpiar scanner:", error);
-      }
+      scannerRef.current.clear().catch(console.error);
       scannerRef.current = null;
     }
     setIsProcessing(false);
     setScanStatus("");
   };
 
-  const getStudentInfo = async (studentId: string): Promise<Student | null> => {
-    try {
-      const { data, error } = await supabase
-        .from("Student")
-        .select("id, name")
-        .eq("id", studentId)
-        .single();
+  const handleScanSuccess = async (decodedText: string) => {
+    const now = Date.now();
 
-      if (error || !data) {
-        throw error || new Error("Estudiante no encontrado");
-      }
-      return data;
-    } catch (error) {
-      console.error("Error al buscar estudiante:", error);
-      return null;
-    }
-  };
-
-  const registerAttendance = async (studentId: string): Promise<boolean> => {
-    try {
-      const { error } = await supabase.from("Attendance").insert({
-        studentId,
-        date: new Date().toISOString(),
-        present: true,
-      });
-
-      if (error) throw error;
-      return true;
-    } catch (error) {
-      console.error("Error al registrar asistencia:", error);
-      return false;
-    }
-  };
-
-  useEffect(() => {
-    if (!scanning) {
-      clearScanner();
+    // Evitar escaneos duplicados en un periodo corto
+    if (
+      lastScannedRef.current?.id === decodedText &&
+      now - lastScannedRef.current.timestamp < 5000
+    ) {
       return;
     }
 
-    // Evitar múltiples instancias
-    if (scannerRef.current) return;
+    setIsProcessing(true);
+    setScanStatus("Procesando...");
+    lastScannedRef.current = { id: decodedText, timestamp: now };
+    setCurrentStudentId(decodedText);
+  };
 
-    const scanner = new Html5QrcodeScanner(
-      "reader",
-      {
-        fps: 10,
-        qrbox: 250,
-        rememberLastUsedCamera: true,
-      },
-      false
-    );
+  useEffect(() => {
+    if (!studentDetails || !currentStudentId) return;
 
-    const handleScan = async (decodedText: string) => {
-      // Bloquear múltiples escaneos simultáneos
-      if (isProcessing) return;
-
-      // Verificar si ya se escaneó recientemente (5 segundos de cooldown)
-      const now = Date.now();
-      if (
-        lastScannedRef.current &&
-        lastScannedRef.current.id === decodedText &&
-        now - lastScannedRef.current.timestamp < 5000
-      ) {
-        return;
-      }
-
-      setIsProcessing(true);
-      setScanStatus("Procesando...");
-      lastScannedRef.current = { id: decodedText, timestamp: now };
-
+    const processAttendance = async () => {
       try {
-        // Validación básica del ID
-        if (!decodedText.match(/^[a-zA-Z0-9-]+$/)) {
+        // Validar formato del ID
+        if (!currentStudentId.match(/^[a-zA-Z0-9-]+$/)) {
           throw new Error("Código QR inválido");
         }
 
-        const student = await getStudentInfo(decodedText);
-        if (!student) {
+        // Verificar si el estudiante existe
+        if (studentError) {
           throw new Error("Estudiante no registrado");
         }
 
-        const success = await registerAttendance(student.id);
-        if (!success) {
-          throw new Error("Error al registrar asistencia");
+        // Verificar asistencia existente
+        if (attendanceError) {
+          throw new Error("Error al verificar asistencia");
         }
 
-        // Formatear fecha legible
+        if (attendanceExists) {
+          throw new Error(`${studentDetails.name} ya registró asistencia hoy`);
+        }
+
+        // Registrar nueva asistencia
+        await createAttendance({
+          studentId: currentStudentId,
+          date: new Date().toISOString(),
+          present: true,
+          lessonId: undefined, // Opcional, según tu schema
+        });
+
+        // Actualizar historial
         const formattedDate = new Date().toLocaleString("es-ES", {
           day: "2-digit",
           month: "2-digit",
@@ -144,28 +108,26 @@ const QRScanner: React.FC = () => {
         });
 
         const newRecord: ScanRecord = {
-          id: student.id,
-          name: student.name,
+          id: studentDetails.id,
+          name: `${studentDetails.name} ${studentDetails.surname}`,
           success: true,
           message: "Asistencia registrada",
           timestamp: formattedDate,
         };
 
         setScanHistory((prev) => [newRecord, ...prev.slice(0, 9)]);
-        setScanStatus("Registro exitoso ✓");
-
-        // Mostrar notificación única
-        toast.success(`Asistencia registrada para ${student.name}`, {
-          description: formattedDate,
-        });
+        setScanStatus("✅ Registro exitoso");
+        toast.success(
+          `Asistencia registrada para ${studentDetails.name} ${studentDetails.surname}`
+        );
       } catch (error: any) {
         console.error("Error en el escaneo:", error);
-        setScanStatus(`Error: ${error.message}`);
 
-        const student = await getStudentInfo(decodedText);
         const errorRecord: ScanRecord = {
-          id: decodedText,
-          name: student?.name || "Desconocido",
+          id: currentStudentId || "unknown",
+          name: studentDetails
+            ? `${studentDetails.name} ${studentDetails.surname}`
+            : "Desconocido",
           success: false,
           message: error.message,
           timestamp: new Date().toLocaleString(),
@@ -173,26 +135,51 @@ const QRScanner: React.FC = () => {
 
         setScanHistory((prev) => [errorRecord, ...prev.slice(0, 9)]);
         toast.error(error.message);
+        setScanStatus(`Error: ${error.message}`);
       } finally {
-        // Resetear después de un breve delay
-        setTimeout(() => {
-          setIsProcessing(false);
-          setScanStatus(scanning ? "Listo para escanear" : "");
-        }, 1000);
+        setIsProcessing(false);
+        setCurrentStudentId(null);
+        // Invalidar queries relacionadas
+        queryClient.invalidateQueries({
+          queryKey: ["attendance", "daily-check", currentStudentId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["attendance", "list"],
+        });
       }
     };
 
-    scanner.render(
-      (decodedText) => handleScan(decodedText),
-      (error) => {
-        if (!error.includes("NotFoundException")) {
-          console.error("Error del scanner:", error);
-        }
-      }
+    processAttendance();
+  }, [studentDetails, attendanceExists, currentStudentId]);
+
+  useEffect(() => {
+    if (!scanning) {
+      clearScanner();
+      return;
+    }
+
+    if (scannerRef.current) return;
+
+    const scanner = new Html5QrcodeScanner(
+      "qr-reader",
+      {
+        fps: 10,
+        qrbox: 250,
+        rememberLastUsedCamera: true,
+      },
+      false
     );
 
+    const handleError = (error: string) => {
+      if (!error.includes("NotFoundException")) {
+        console.error("Error del scanner:", error);
+        setScanStatus(`Error: ${error}`);
+      }
+    };
+
+    scanner.render(handleScanSuccess, handleError);
     scannerRef.current = scanner;
-    setScanStatus("Escáner listo");
+    setScanStatus("Escáner listo - Mostrando cámara");
 
     return () => {
       clearScanner();
@@ -200,9 +187,11 @@ const QRScanner: React.FC = () => {
   }, [scanning]);
 
   return (
-    <div className="max-w-md mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold text-center">Registro de Asistencia</h1>
-      <Toaster position="top-center" />
+    <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-center">
+        Registro de Asistencia QR
+      </h2>
+      <Toaster position="top-center" richColors />
 
       <div className="flex flex-col items-center gap-4">
         <button
@@ -212,7 +201,7 @@ const QRScanner: React.FC = () => {
             scanning
               ? "bg-red-600 hover:bg-red-700"
               : "bg-blue-600 hover:bg-blue-700"
-          } transition-colors disabled:opacity-70`}
+          } transition-colors disabled:opacity-70 w-full`}
         >
           {scanning
             ? isProcessing
@@ -224,7 +213,7 @@ const QRScanner: React.FC = () => {
         {scanning && (
           <>
             <div
-              className={`p-3 rounded-lg text-center ${
+              className={`p-3 rounded-lg text-center w-full ${
                 scanStatus.includes("Error")
                   ? "bg-red-100 text-red-800"
                   : scanStatus.includes("✓")
@@ -236,7 +225,7 @@ const QRScanner: React.FC = () => {
             </div>
 
             <div
-              id="reader"
+              id="qr-reader"
               className="w-full border-2 border-gray-300 rounded-lg overflow-hidden"
             ></div>
           </>
@@ -255,12 +244,12 @@ const QRScanner: React.FC = () => {
                       : "bg-red-50 border-red-200"
                   }`}
                 >
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <div>
                       <p className="font-medium">{record.name}</p>
                       <p className="text-sm">{record.message}</p>
                     </div>
-                    <span className="text-xs text-gray-500">
+                    <span className="text-xs text-gray-500 whitespace-nowrap">
                       {record.timestamp}
                     </span>
                   </div>
