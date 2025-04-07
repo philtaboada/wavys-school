@@ -54,13 +54,25 @@ interface FormContainerTQProps {
   type: "create" | "update" | "delete";
   id?: number;
   data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | Subject | undefined;
+  extraProps?: {
+    relatedData?: {
+      students?: StudentData[];
+      lessons?: Lesson[];
+      subjects?: Subject[];
+      classes?: Class[];
+      grades?: { id: number; name: string }[];
+      parents?: { id: string; name: string; surname: string }[];
+      teachers?: { id: string; name: string; surname: string }[];
+    }
+  };
 }
 
 export default function FormContainerTQ({
   table,
   type,
   id,
-  data
+  data,
+  extraProps
 }: FormContainerTQProps) {
   const [open, setOpen] = useState(false);
   const [relatedData, setRelatedData] = useState<{
@@ -71,7 +83,7 @@ export default function FormContainerTQ({
     grades?: { id: number; name: string }[];
     parents?: { id: string; name: string; surname: string }[];
     teachers?: { id: string; name: string; surname: string }[];
-  }>({});
+  }>(extraProps?.relatedData || {});
   const [isLoading, setIsLoading] = useState(false);
   const deleteAttendanceMutation = useDeleteAttendance();
   const deleteTeacherMutation = useDeleteTeacher();
@@ -82,6 +94,18 @@ export default function FormContainerTQ({
 
   // Cargar datos relacionados al abrir el formulario
   const fetchRelatedData = async () => {
+    //Si ya se tiene datos relacionados desde extraProps, no se necesita cargarlos
+    if(extraProps?.relatedData && Object.keys(extraProps.relatedData).length > 0) {
+      if (table === 'student' && (!extraProps.relatedData.classes || extraProps.relatedData.classes.length === 0)) {
+        console.log('No se encontraron clases en los datos proporcionados, cargando desde la base de datos...');
+      } else {
+        console.log('Usando datos relacionados proporcionados:', extraProps.relatedData);
+        setRelatedData(extraProps.relatedData);
+        setIsLoading(false);
+        return;
+      }
+    }
+
     setIsLoading(true);
     try {
       const supabase = createClient();
@@ -139,16 +163,27 @@ export default function FormContainerTQ({
         });
       } else if (table === "student") {
         // Clases para estudiantes
-        const { data: classes } = await supabase
+        const { data: classes, error: classError } = await supabase
           .from('Class')
           .select('id, name')
           .order('name');
+        if (classError) {
+          console.error('Error al cargar clases:', classError);
+        } else {
+          console.log("Clases cargadas", classes);
+        }
         
         // Grados para estudiantes
-        const { data: grades } = await supabase
+        const { data: grades, error: gradeError } = await supabase
           .from('Grade')
-          .select('id, name')
-          .order('name');
+          .select('id, level, name')
+          .order('level');
+
+        if (gradeError) {
+          console.error('Error al cargar grados:', gradeError);
+        } else {
+          console.log("Grados cargados", grades);
+        }
         
         // Padres para estudiantes
         const { data: parents } = await supabase
@@ -228,11 +263,13 @@ export default function FormContainerTQ({
     } else if (table === "student") {
       deleteStudentMutation.mutate({ id: id.toString() }, {
         onSuccess: () => {
-          toast.success("Estudiante eliminado correctamente");
-          router.refresh();
-        },
+        toast.success("Estudiante eliminado correctamente");
+        router.refresh();
+        router.push('/protected/list/students');
+      },
         onError: (error) => {
           toast.error(`Error al eliminar estudiante: ${error.message}`);
+          console.error("Error deleting student:", error);
         }
       });
     } else if (table === "parent") {
@@ -284,6 +321,8 @@ export default function FormContainerTQ({
       );
     }
     if (table === "student" && (type === "create" || type === "update")) {
+      console.log("Renderizando StudentFormTQ con relatedData:", relatedData);
+      console.log("Clases disponibles:", relatedData.classes);
       return (
         <StudentFormTQ
           type={type}

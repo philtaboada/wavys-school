@@ -12,6 +12,10 @@ import { ArrowDownNarrowWide, ListFilterPlus, Eye, CircleUser } from 'lucide-rea
 import { Student } from '@/utils/types/student';
 import Link from 'next/link';
 import Loading from '../loading';
+import { useClassList } from "@/utils/queries/classQueries";
+import { useGradeList } from "@/utils/queries/gradeQueries";
+import { useParentList } from "@/utils/queries/parentQueries";
+// import StudentFormTQ from '@/components/forms/StudentFormTQ';
 
 // Definir tipo SearchParams
 interface SearchParams {
@@ -40,6 +44,27 @@ export default function StudentClientTQ({
   // Estado local para búsqueda
   const [searchValue, setSearchValue] = useState(initialSearchParams?.search || '');
 
+  const { data: classesData, isLoading: classesLoading } = useClassList({
+    page: 1,
+    search: '' //Opcional, es para la busqueda
+  });
+  const { data: gradesData, isLoading: gradesLoading } = useGradeList();
+  const { data: parentsData, isLoading: parentsLoading } = useParentList({
+    page: 1,
+    search: '' //Opcional, es para la busqueda
+  });
+
+  // Agregar logs para depuración
+  useEffect(() => {
+    console.log("Datos de clases cargados:", classesData);
+    console.log("Datos de grados cargados:", gradesData);
+    console.log("Datos de padres cargados:", parentsData);
+  }, [classesData, gradesData, parentsData]);
+
+  //Estado para el modal
+  // const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // const [modalContent, setModalContent] = useState<React.ReactNode>(null);
+
   // Usuario
   const { user } = useUser();
   const userRole = user?.user_metadata?.role || initialRole;
@@ -66,6 +91,35 @@ export default function StudentClientTQ({
     parentId, // Pasar parentId
     // No necesita pasar role/userId ya que useStudentList no los usa directamente
   });
+
+  // Agregar logs para verificar los datos cargados
+  useEffect(() => {
+    console.log("Datos de grados cargados:", gradesData);
+    if (gradesData?.data && gradesData.data.length > 0) {
+      console.log("Estructura del primer grado:", JSON.stringify(gradesData.data[0]));
+    }
+  }, [gradesData]);
+
+  const handleCreateStudent = () => {
+    console.log("handleCreateStudent - Datos de clases disponibles:", classesData?.data || []);
+    console.log("handleCreateStudent - Datos de grados disponibles:", gradesData?.data || []);
+    console.log("handleCreateStudent - Datos de padres disponibles:", parentsData?.data || []);
+
+    // Aqui modificamos el FormContainerTQ para pasar los datos relacionados
+    return (
+      <FormContainerTQ
+        table="student"
+        type="create"
+        extraProps={{
+          relatedData: {
+            classes: classesData?.data || [],
+            grades: gradesData?.data || [],
+            parents: parentsData?.data || []
+          }
+        }}
+      />
+    );
+  };
 
   // Definir las columnas de la tabla
   const columns = [
@@ -117,9 +171,9 @@ export default function StudentClientTQ({
                 alt={`${item.name} ${item.surname}`} 
                 className="w-10 h-10 rounded-full object-cover"
                 onError={(e) => (e.currentTarget.src = '/default-avatar.png')}
-             />
+            />
           ) : (
-             <CircleUser className="w-10 h-10 rounded-full object-cover text-gray-400" />
+            <CircleUser className="w-10 h-10 rounded-full object-cover text-gray-400" />
           )}
           <div className="flex flex-col">
             <h3 className="font-semibold">{item.name} {item.surname}</h3>
@@ -175,8 +229,8 @@ export default function StudentClientTQ({
         <h1 className="text-lg font-semibold mb-4">Error en Lista de Estudiantes</h1>
         <p>Se produjo un error al obtener los datos</p>
         <pre className="bg-red-50 p-2 mt-2 rounded text-xs overflow-auto">
-           {typeof error === 'object' && error !== null && 'message' in error ? 
-             (error as {message: string}).message : String(error)}
+          {typeof error === 'object' && error !== null && 'message' in error ? 
+            (error as {message: string}).message : String(error)}
         </pre>
       </div>
     );
@@ -197,7 +251,8 @@ export default function StudentClientTQ({
               />
               <div className="flex items-center gap-4 self-end">
                   {userRole === "admin" && (
-                    <FormContainerTQ table="student" type="create" />
+              // <FormContainerTQ table="student" type="create" />
+              handleCreateStudent()
                   )}
               </div>
           </div>
