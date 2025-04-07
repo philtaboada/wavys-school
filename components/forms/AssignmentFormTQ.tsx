@@ -5,6 +5,8 @@ import { useCreateAssignment, useUpdateAssignment } from "@/utils/queries/assign
 import { Assignment } from "@/utils/types/assignment";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { SubmitButton } from "@/components/submit-button";
 
 // Propiedades para el formulario
 interface AssignmentFormTQProps {
@@ -34,10 +36,13 @@ export default function AssignmentFormTQ({
   // Configurar estado del formulario
   const [formData, setFormData] = useState({
     title: "",
+    // description: "",
     startDate: "",
     dueDate: "",
     lessonId: 0
   });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Manejar mutaciones
   const createAssignmentMutation = useCreateAssignment();
@@ -48,10 +53,11 @@ export default function AssignmentFormTQ({
   useEffect(() => {
     if (isUpdateMode && data) {
       setFormData({
-        title: data.title,
+        title: data.title || '',
+        // description: data.description || '',
         startDate: data.startDate ? new Date(data.startDate).toISOString().split('T')[0] : "",
         dueDate: data.dueDate ? new Date(data.dueDate).toISOString().split('T')[0] : "",
-        lessonId: data.lessonId
+        lessonId: data.lessonId || 0
       });
     }
   }, [isUpdateMode, data]);
@@ -66,7 +72,7 @@ export default function AssignmentFormTQ({
   };
 
   // Manejar envío del formulario
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validar campos obligatorios
@@ -75,40 +81,39 @@ export default function AssignmentFormTQ({
       return;
     }
 
-    // Crear o actualizar según el modo
-    if (isUpdateMode && data) {
-      updateAssignmentMutation.mutate({
-        id: data.id,
-        title: formData.title,
-        startDate: formData.startDate,
-        dueDate: formData.dueDate,
-        lessonId: formData.lessonId
-      }, {
-        onSuccess: () => {
-          toast.success("Tarea actualizada exitosamente");
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          toast.error(`Error al actualizar tarea: ${error.message}`);
-        }
-      });
-    } else {
-      createAssignmentMutation.mutate({
-        title: formData.title,
-        startDate: formData.startDate,
-        dueDate: formData.dueDate,
-        lessonId: formData.lessonId
-      }, {
-        onSuccess: () => {
-          toast.success("Tarea creada exitosamente");
-          setOpen(false);
-          router.refresh();
-        },
-        onError: (error) => {
-          toast.error(`Error al crear tarea: ${error.message}`);
-        }
-      });
+    setIsSubmitting(true);
+
+    try {
+      // Crear o actualizar según el modo
+      if (isUpdateMode && data) {
+        await updateAssignmentMutation.mutateAsync({
+          id: data.id,
+          title: formData.title,
+          // description: formData.description,
+          startDate: formData.startDate,
+          dueDate: formData.dueDate,
+          lessonId: formData.lessonId
+        });
+
+        toast.success('tarea actualizada exitosamente');
+      } else {
+        await createAssignmentMutation.mutateAsync({
+          title: formData.title,
+          // description: formData.description,
+          startDate: formData.startDate,
+          dueDate: formData.dueDate,
+          lessonId: formData.lessonId
+        });
+
+        toast.success("Tarea creada exitosamente");
+      }
+
+      setOpen(false);
+      router.refresh();
+    } catch (error: any) {
+      toast.error(`Error al ${isUpdateMode ? "actualizar" : "crear"} tarea: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -135,6 +140,20 @@ export default function AssignmentFormTQ({
           required
         />
       </div>
+
+      {/* Descripcion */}
+      {/* <div className="grid gap-2">
+        <label htmlFor="description" className="text-sm font-medium">
+          Descripción
+        </label>
+        <textarea
+          id="description"
+          name="description"
+          value={formData.description}
+          onChange={handleChange}
+          className="w-full p-2 border rounded-md min-h-[100px]"
+        />
+      </div> */}
       
       {/* Fecha de inicio */}
       <div className="flex flex-col gap-2">
@@ -174,7 +193,7 @@ export default function AssignmentFormTQ({
         <select
           id="lessonId"
           name="lessonId"
-          value={formData.lessonId}
+          value={formData.lessonId || ''}
           onChange={handleChange}
           className="p-2 border rounded"
           required
@@ -182,7 +201,7 @@ export default function AssignmentFormTQ({
           <option value="">Selecciona una lección</option>
           {relatedData.lessons?.map(lesson => (
             <option key={lesson.id} value={lesson.id}>
-              {lesson.subject?.name ? `${lesson.subject.name}: ${lesson.name}` : lesson.name}
+              {lesson.name} {lesson.subject ? `${lesson.subject.name}):` : ''}
             </option>
           ))}
         </select>
@@ -200,11 +219,9 @@ export default function AssignmentFormTQ({
         <button
           type="submit"
           className="px-4 py-2 bg-blue-500 text-white rounded"
-          disabled={createAssignmentMutation.isPending || updateAssignmentMutation.isPending}
+          disabled={isSubmitting}
         >
-          {(createAssignmentMutation.isPending || updateAssignmentMutation.isPending) 
-            ? "Guardando..." 
-            : isUpdateMode ? "Actualizar" : "Crear"}
+          {isSubmitting ? "Guardando..." : isUpdateMode ? "Actualizar" : "Crear"}
         </button>
       </div>
     </form>
