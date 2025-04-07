@@ -77,7 +77,7 @@ export default function AnnouncementClientTQ({ initialRole, initialUserId }: Ann
         className="border-b border-gray-200 even:bg-slate-50 text-sm hover:bg-lamaPurpleLight"
       >
         <td className="flex items-center gap-4 p-4">{item.title}</td>
-        <td>{item.Class?.name || "-"}</td>
+        <td>{item.class?.name || "-"}</td>
         <td className="hidden md:table-cell">
           {item.date ? new Intl.DateTimeFormat("es-ES").format(new Date(item.date)) : "-"}
         </td>

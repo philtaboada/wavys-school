@@ -64,7 +64,7 @@ const AnnouncementForm = ({
         title: formData.title,
         description: formData.description,
         date: formData.date.toISOString(),
-        classId: formData.classId || undefined,
+        classId: formData.classId ? formData.classId : null,
       }, {
         onSuccess: () => {
           toast.success("Anuncio creado correctamente");
@@ -83,7 +83,7 @@ const AnnouncementForm = ({
         title: formData.title,
         description: formData.description,
         date: formData.date.toISOString(),
-        classId: formData.classId || undefined,
+        classId: formData.classId ? formData.classId : null,
       }, {
         onSuccess: () => {
           toast.success("Anuncio actualizado correctamente");

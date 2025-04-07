@@ -3,8 +3,10 @@ export type Announcement = {
   title: string;
   description: string;
   date: string;
-  classId?: number;
-  Class?: {
+  read: boolean;
+  classId?: number | null;
+  type: 'announcement' | 'alert';
+  class?: {
     id: number;
     name: string;
     Grade?: {
@@ -17,7 +19,7 @@ export type Announcement = {
 export type AnnouncementListParams = {
   page: number;
   search?: string;
-  classId?: number;
+  classId?: number | null;
   startDate?: string;
   endDate?: string;
   global?: boolean; // Para filtrar anuncios globales (sin classId)
@@ -33,7 +35,7 @@ export type CreateAnnouncementParams = {
   title: string;
   description: string;
   date: string;
-  classId?: number;
+  classId?: number | null;
 };
 
 export type UpdateAnnouncementParams = {
@@ -41,5 +43,12 @@ export type UpdateAnnouncementParams = {
   title?: string;
   description?: string;
   date?: string;
-  classId?: number;
+  classId?: number | null;
 };
+
+export interface AnnouncementState {
+  announcements: Announcement[];
+  unreadCount: number;
+  loading: boolean;
+  error: string | null;
+}

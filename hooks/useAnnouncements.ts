@@ -1,18 +1,66 @@
 import { useSupabaseQuery } from '@/utils/queries/useSupabaseQuery';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Announcement, AnnouncementState } from '@/types/announcement';
+import { Announcement, AnnouncementState } from '@/utils/types/announcement';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 export const useAnnouncements = (): AnnouncementState => {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [classIds, setClassIds] = useState<string[]>([]);
   const [isClassIdsLoaded, setIsClassIdsLoaded] = useState(false);
+  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   console.log('Component mounted/updated');
 
 
-  // Obtener información del usuario
+  const showNotification = useCallback((announcement: Announcement) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('Nuevo Anuncio', {
+        body: announcement.title,
+        icon: '/favicon.ico'
+      });
+    }
+  }, []);
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!userId) return;
+
+    const supabase = createClient();
+    const newChannel = supabase
+      .channel('announcements')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'announcements',
+        },
+        (payload) => {
+          const newAnnouncement = payload.new as Announcement;
+          // Check if the announcement is for the user's class or is a global announcement
+          if (!newAnnouncement.classId || classIds.includes(String(newAnnouncement.classId))) {
+            showNotification(newAnnouncement);
+          }
+        }
+      )
+      .subscribe();
+
+    setChannel(newChannel);
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [userId, classIds, showNotification]);
+
+  // Get user info
   useEffect(() => {
     const fetchUserInfo = async () => {
       console.log('Fetching user info...');
