@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { useCreateParent, useUpdateParent } from "@/utils/queries/parentQueries";
 import { Parent } from "@/utils/types/parent";
+import { createClient } from "@/utils/supabase/client";
 
 interface ParentsFormProps {
   type: "create" | "update";
@@ -51,6 +52,7 @@ const ParentsForm = ({
 
   const [customError, setCustomError] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>("");
+  const [isDisassociating, setIsDisassociating] = useState<boolean>(false); // Nuevo estado para controlar la carga durante desvinculación
 
   // Utilizar los hooks de mutación de TanStack Query
   const createMutation = useCreateParent();
@@ -106,20 +108,83 @@ const ParentsForm = ({
     }
   });
 
-  const handleAssociateStudent = () => {
+    // Nueva función para desvincular un estudiante del padre
+  const handleDisassociateStudent = async (studentId: string) => {
+    if (!data?.id) return;
+    
+    try {
+      setIsDisassociating(true);
+      const supabase = createClient();
+      
+      // Actualizar el estudiante para eliminar la referencia al padre
+      const { error } = await supabase
+        .from('Student')
+        .update({ parentId: null })
+        .eq('id', studentId);
+        
+      if (error) {
+        console.error("Error al desvincular estudiante:", error);
+        toast.error(`Error al desvincular estudiante: ${error.message}`);
+        return;
+      }
+      
+      toast.success("Estudiante desvinculado correctamente");
+      
+      // Invalidar la caché para forzar una recarga de los datos
+      // Esto es más efectivo que router.refresh() en algunos casos
+      setTimeout(() => {
+        // Cerrar y volver a abrir el modal para refrescar los datos
+        setOpen(false);
+        setTimeout(() => {
+          window.location.reload(); // Forzar recarga completa de la página
+        }, 300);
+      }, 500);
+    } catch (error) {
+      console.error("Error al desvincular estudiante:", error);
+      toast.error("Error al desvincular estudiante");
+    } finally {
+      setIsDisassociating(false);
+    }
+  };
+
+  const handleAssociateStudent = async () => {
     if (!selectedStudentId) {
       toast.warning("Selecciona un estudiante primero");
       return;
     }
+
+    try {
+      const supabase = createClient();
     
-    // Aquí irá la lógica para asociar el estudiante al padre
-    // Esta implementación dependerá de cómo esté configurada la API
+      // Actualizar el estudiante para asociarlo al padre
+      const { error } = await supabase
+        .from('Student')
+        .update({ parentId: data.id })
+        .eq('id', selectedStudentId);
+      
+      if (error) {
+        console.error("Error al asociar estudiante:", error);
+        toast.error(`Error al asociar estudiante: ${error.message}`);
+        return;
+      }
     
-    // Ejemplo de mensaje de éxito provisional
-    toast.success("Estudiante asociado correctamente");
+      toast.success("Estudiante asociado correctamente");
     
-    // Limpiar el select después de asociar
-    setSelectedStudentId("");
+      // Limpiar el select después de asociar
+      setSelectedStudentId("");
+    
+      // Invalidar la caché para forzar una recarga de los datos
+      setTimeout(() => {
+        // Cerrar y volver a abrir el modal para refrescar los datos
+        setOpen(false);
+        setTimeout(() => {
+          window.location.reload(); // Forzar recarga completa de la página
+        }, 300);
+      }, 500);
+    } catch (error) {
+      console.error("Error al asociar estudiante:", error);
+      toast.error("Error al asociar estudiante");
+    }
   };
 
   // Determinar si está cargando
@@ -348,21 +413,44 @@ const ParentsForm = ({
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {data.students.map((student: any) => (
                   <div key={student.id} className="flex items-center gap-2 bg-white p-2 rounded-md border border-gray-200 shadow-sm">
-                    <div className="bg-indigo-100 p-1 rounded-full">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
+                    <div className="flex items-center gap-2">
+                      <div className="bg-indigo-100 p-1 rounded-full">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="9" cy="7" r="4"></circle>
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-800">{student.name} {student.surname}</p>
+                        {student.Class && (
+                          <p className="text-xs text-gray-500">Clase: {student.Class.name}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleDisassociateStudent(student.id)}
+                      disabled={isDisassociating}
+                      className="text-xs bg-red-100 hover:bg-red-200 text-red-700 px-2 py-1 rounded transition-colors duration-200 flex items-center"
+                    >
+                    {isDisassociating ? (
+                      <svg className="animate-spin h-3 w-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-gray-800">{student.name} {student.surname}</p>
-                      {student.Class && (
-                        <p className="text-xs text-gray-500">Clase: {student.Class.name}</p>
-                      )}
-                    </div>
-                  </div>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
+                        <path d="M18 6L6 18M6 6l12 12"></path>
+                      </svg>
+                    )}
+                    Desvincular
+                  </button>
+                </div>
                 ))}
-              </div>
+            </div>
+            <p className="text-xs text-gray-500 mt-2 italic">
+              Para eliminar este padre, primero debe desvincular todos los estudiantes asociados.
+            </p>
             </div>
           ) : type === "update" ? (
             <div className="text-sm text-gray-500 italic mb-4">Este padre no tiene estudiantes asociados aún.</div>
