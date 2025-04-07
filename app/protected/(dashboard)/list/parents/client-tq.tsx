@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Table from "@/components/Table";
 import TableSearch from "@/components/TableSearch";
@@ -12,6 +12,7 @@ import { ArrowDownNarrowWide, ListFilterPlus, Eye } from 'lucide-react';
 import { Parent } from '@/utils/types/parent';
 import Link from 'next/link';
 import Loading from '../loading';
+import { useStudentList } from '@/utils/queries/studentQueries';
 
 interface ParentClientTQProps {
   initialRole?: string;
@@ -42,6 +43,39 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
     studentId,
     classId
   });
+
+  //Obtener la lista de estudiantes para el formulario de creacion
+  const { data: studentsData, isLoading: studentsLoading, error: studentsError } = useStudentList({
+    page: 1,
+    search: '',
+    parentId: undefined,
+  });
+
+  //Se agrega logs para depuracion
+  useEffect(() => {
+    console.log('Datos de estudiantes cargados:', studentsData);
+    if (studentsError) {
+      console.error('Error al cargar estudiantes:', studentsError);
+    }
+  }, [studentsData, studentsError]);
+
+  //Funcion para manejar la creacion de padres
+  const handleCreateParent = () => {
+    console.log('handleCreateParent - iniciando creacion del padre');
+    console.log('Estudiantes disponibles', studentsData?.data || []);
+
+    return (
+      <FormContainerTQ
+        table="parent"
+        type="create"
+        extraProps={{
+          relatedData: {
+            students: studentsData?.data || [],
+          }
+        }}
+      />
+    );
+  };
 
   // Definir las columnas de la tabla
   const columns = [
@@ -109,8 +143,17 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
             </Link>
             {userRole === "admin" && (
               <>
-                <FormContainerTQ table="parent" type="update" data={item} />
-                <FormContainerTQ table="parent" type="delete" id={Number(item.id)} />
+                <FormContainerTQ
+                  table="parent"
+                  type="update" 
+                  data={item}
+                  extraProps={{
+                    relatedData: {
+                      students: studentsData?.data || [],
+                    }
+                  }}
+                />
+                <FormContainerTQ table="parent" type="delete" id={item.id} />
               </>
             )}
           </div>
@@ -166,7 +209,7 @@ export default function ParentClientTQ({ initialRole, initialUserId }: ParentCli
               <ArrowDownNarrowWide className="w-4 h-4" />
             </button>
             {userRole === "admin" && (
-              <FormContainerTQ table="parent" type="create" />
+              handleCreateParent()
             )}
           </div>
         </div>

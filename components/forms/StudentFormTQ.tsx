@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { useCreateStudent, useUpdateStudent } from "@/utils/queries/studentQueries";
 import { Student } from "@/utils/types/student";
 import Image from "next/image";
+import { blob } from "stream/consumers";
 
 // Tipo para la imagen con información adicional de la URL firmada
 type ImageInfo = {
@@ -24,7 +25,7 @@ interface StudentFormTQProps {
   setOpen: (open: boolean) => void;
   relatedData?: {
     classes?: { id: number; name: string }[];
-    grades?: { id: number; name: string }[];
+    grades?: { id: number; name: string; level?: string }[];
     parents?: { id: string; name: string; surname: string }[];
   };
 }
@@ -33,8 +34,13 @@ const StudentFormTQ = ({
   type,
   data,
   setOpen,
-  relatedData,
+  relatedData
 }: StudentFormTQProps) => {
+
+  //Depuracion para ver que datos estamos recibiendo:
+  console.log("StudentFormTQ - Tipo:", type);
+  console.log("StudentFormTQ - Data recibida:", data);
+  console.log("StudentFormTQ - RelatedData recibida:", relatedData);
   const {
     register,
     handleSubmit,
@@ -54,8 +60,10 @@ const StudentFormTQ = ({
       bloodType: data?.bloodType || "",
       sex: data?.sex as "MALE" | "FEMALE" | undefined,
       birthday: data?.birthday ? new Date(data.birthday) : undefined,
-      gradeId: data?.gradeId || 0,
-      classId: data?.classId || 0,
+      classId: data?.classId ? String(data.classId) : "",
+      gradeId: data?.gradeId ? String(data.gradeId) : "",
+      // gradeId: data?.gradeId || 0,
+      // classId: data?.classId || 0,
       parentId: data?.parentId || ""
     }
   });
@@ -75,28 +83,47 @@ const StudentFormTQ = ({
   const router = useRouter();
 
   const onSubmit = handleSubmit((formData) => {
-    setCustomError(null);
-    
-    // Convertir Date a string para birthday
-    const formattedBirthday = formData.birthday?.toISOString().split("T")[0] || "";
+    try{
+      setCustomError(null);
+      setIsUploading(true);
 
-    if (type === "create") {
-      createMutation.mutate({
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password || "",
-        phone: formData.phone,
-        address: formData.address || "",
-        bloodType: formData.bloodType || "",
-        sex: formData.sex || "",
-        birthday: formattedBirthday,
-        gradeId: formData.gradeId,
-        classId: formData.classId,
-        parentId: formData.parentId,
-        img: img?.url,
-        imgPath: img?.path
+      console.log('Formulario de datos antes del envio:', formData);
+
+      //Validar los campos requeridos
+      if(!formData.username || !formData.email || !formData.name || !formData.surname){
+        setCustomError("Por favor, complete todos los campos requeridos.");
+        setIsUploading(false);
+        return;
+      }
+      
+      // Convertir Date a string para birthday
+      const formattedBirthday = formData.birthday?.toISOString().split("T")[0] || "";
+
+      //Preparar los datos del estudiante
+      const studentData = {
+        username: formData.username.trim(),
+        name: formData.name.trim(),
+        surname: formData.surname.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone?.trim() || undefined,
+        address: formData.address?.trim() || '',
+        bloodType: formData.bloodType?.trim() || '',
+        sex: formData.sex || '',
+        birthday: formData.birthday ? formData.birthday.toISOString().split("T")[0] : undefined,
+        classId: parseInt(formData.classId, 10) || 0,
+        gradeId: parseInt(formData.gradeId, 10) || 0,
+        parentId: formData.parentId || undefined,
+        img: img?.url || undefined,
+        imgPath: img?.path || undefined,
+      } as const;
+
+      console.log('Datos para el envio:', studentData);
+      
+      if (type === "create") {
+        console.log('Enviando datos para crear estudiante:', studentData);
+        createMutation.mutate({
+          ...studentData,
+          password: formData.password || ''
       }, {
         onSuccess: () => {
           toast.success("Estudiante creado correctamente");
@@ -106,39 +133,33 @@ const StudentFormTQ = ({
         },
         onError: (error) => {
           setCustomError(error.message);
-          toast.error("Error al crear el estudiante");
+          setIsUploading(false);
         }
       });
-    } else if (formData.id) {
+    } else if (type === 'update' && data?.id) {
       updateMutation.mutate({
-        id: formData.id,
-        username: formData.username,
-        name: formData.name,
-        surname: formData.surname,
-        email: formData.email,
-        password: formData.password, // Si es undefined, no se actualizará
-        phone: formData.phone,
-        address: formData.address,
-        bloodType: formData.bloodType,
-        sex: formData.sex,
-        birthday: formattedBirthday,
-        gradeId: formData.gradeId,
-        classId: formData.classId,
-        parentId: formData.parentId,
-        img: img?.url,
-        imgPath: img?.path
+        ...studentData,
+        id: data.id,
+        password: formData.password || undefined // Si no se proporciona una nueva contraseña, se mantiene la actual
       }, {
         onSuccess: () => {
           toast.success("Estudiante actualizado correctamente");
           setOpen(false);
           router.refresh();
+          setIsUploading(false);
         },
         onError: (error) => {
+          console.error('Error al actualizar el estudiante:', error);
           setCustomError(error.message);
-          toast.error("Error al actualizar el estudiante");
+          setIsUploading(false);
         }
       });
     }
+  } catch (error) {
+    console.error('Error al enviar el formulario:', error);
+    setCustomError((error as Error).message);
+      setIsUploading(false);
+  }
   });
 
   // Función para manejar la carga de imágenes con Google Cloud Storage
@@ -443,15 +464,19 @@ const StudentFormTQ = ({
               </label>
               <select
                 className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
-                {...register("classId", { valueAsNumber: true })}
-                defaultValue={data?.classId}
+                {...register("classId")}
+                defaultValue={data?.classId ? data.classId.toString() : ''}
               >
                 <option value="">Seleccionar clase</option>
-                {relatedData?.classes?.map((classItem) => (
-                  <option value={classItem.id} key={classItem.id}>
+                {relatedData?.classes && relatedData.classes.length > 0 ? (
+                  relatedData.classes.map((classItem) => (
+                  <option value={classItem.id.toString()} key={classItem.id}>
                     {classItem.name}
                   </option>
-                ))}
+                ))
+                ) : (
+                <option disabled>No hay clases disponibles</option>
+              )}
               </select>
               {errors.classId?.message && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
@@ -483,15 +508,19 @@ const StudentFormTQ = ({
               </label>
               <select
                 className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
-                {...register("gradeId", { valueAsNumber: true })}
-                defaultValue={data?.gradeId}
+                {...register("gradeId")}
+                defaultValue={data?.gradeId ? data.gradeId.toString(): ''}
               >
                 <option value="">Seleccionar grado</option>
-                {relatedData?.grades?.map((grade) => (
-                  <option value={grade.id} key={grade.id}>
-                    {grade.name}
+                {relatedData?.grades && relatedData.grades.length > 0 ? (
+                  relatedData.grades.map((grade) => (
+                  <option value={grade.id.toString()} key={grade.id}>
+                    {grade.name || grade.level}
                   </option>
-                ))}
+                  ))
+                ) : (
+                <option disabled>No hay grados disponibles</option>
+              )}
               </select>
               {errors.gradeId?.message && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">

@@ -96,7 +96,7 @@ export function useStudentDetails(studentId: string) {
  */
 export function useStudentList(params: StudentListParams) {
   const { page, search, classId, gradeId, parentId } = params;
-  
+
   return useSupabaseQuery<StudentListResult>(
     ['student', 'list', page, search, classId, gradeId, parentId],
     async (supabase) => {
@@ -141,9 +141,9 @@ export function useStudentList(params: StudentListParams) {
         throw new Error(`Error al obtener datos de estudiantes: ${error.message}`);
       }
 
-      return { 
-        data: data as Student[], 
-        count: count || 0 
+      return {
+        data: data as Student[],
+        count: count || 0
       };
     },
     {
@@ -165,24 +165,24 @@ export function useCreateStudent() {
         .select('id, capacity')
         .eq('id', params.classId)
         .single();
-        
+
       if (classError) {
         throw new Error(`Error al verificar la clase: ${classError.message}`);
       }
-      
+
       const { count: studentCount, error: countError } = await supabase
         .from('Student')
         .select('id', { count: 'exact', head: true })
         .eq('classId', params.classId);
-        
+
       if (countError) {
         throw new Error(`Error al contar estudiantes: ${countError.message}`);
       }
-      
+
       if (classData.capacity === studentCount) {
         throw new Error('La clase ha alcanzado su capacidad máxima');
       }
-      
+
       // Crear usuario en Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: params.email || `${params.username}@example.com`,
@@ -195,15 +195,15 @@ export function useCreateStudent() {
           }
         }
       });
-      
+
       if (authError) {
         throw new Error(`Error al crear usuario: ${authError.message}`);
       }
-      
+
       if (!authData.user?.id) {
         throw new Error('No se pudo obtener el ID del usuario creado');
       }
-      
+
       // Crear registro en la tabla de students
       const { error: studentError } = await supabase
         .from('Student')
@@ -224,11 +224,11 @@ export function useCreateStudent() {
           classId: params.classId,
           parentId: params.parentId
         });
-      
+
       if (studentError) {
         throw new Error(`Error al crear estudiante: ${studentError.message}`);
       }
-      
+
       return { id: authData.user.id };
     },
     {
@@ -247,18 +247,18 @@ export function useUpdateStudent() {
   return useSupabaseMutation<UpdateStudentParams, { id: string }>(
     async (supabase, params) => {
       const { id, password, ...studentData } = params;
-      
+
       // Actualizar usuario en Auth si hay nueva contraseña
       if (password) {
         const { error: authError } = await supabase.auth.updateUser({
           password
         });
-        
+
         if (authError) {
           throw new Error(`Error al actualizar contraseña: ${authError.message}`);
         }
       }
-      
+
       // Verificar capacidad de la clase si se está cambiando de clase
       if (studentData.classId) {
         // Obtener la clase actual del estudiante
@@ -267,11 +267,11 @@ export function useUpdateStudent() {
           .select('classId')
           .eq('id', id)
           .single();
-          
+
         if (studentError) {
           throw new Error(`Error al obtener estudiante: ${studentError.message}`);
         }
-        
+
         // Si está cambiando de clase, verificar capacidad
         if (currentStudent.classId !== studentData.classId) {
           const { data: classData, error: classError } = await supabase
@@ -279,36 +279,36 @@ export function useUpdateStudent() {
             .select('id, capacity')
             .eq('id', studentData.classId)
             .single();
-            
+
           if (classError) {
             throw new Error(`Error al verificar la clase: ${classError.message}`);
           }
-          
+
           const { count: studentCount, error: countError } = await supabase
             .from('Student')
             .select('id', { count: 'exact', head: true })
             .eq('classId', studentData.classId);
-            
+
           if (countError) {
             throw new Error(`Error al contar estudiantes: ${countError.message}`);
           }
-          
+
           if (classData.capacity === studentCount) {
             throw new Error('La clase ha alcanzado su capacidad máxima');
           }
         }
       }
-      
+
       // Actualizar registro en la tabla de students
       const { error: studentError } = await supabase
         .from('Student')
         .update(studentData)
         .eq('id', id);
-      
+
       if (studentError) {
         throw new Error(`Error al actualizar estudiante: ${studentError.message}`);
       }
-      
+
       return { id };
     },
     {
@@ -328,22 +328,32 @@ export function useDeleteStudent() {
     async (supabase, { id }) => {
       // Verificar si tiene registros asociados antes de eliminar (opcional)
       // Por ejemplo, calificaciones, asistencias, etc.
-      
+
       // Eliminar el registro de student
       const { error: studentError } = await supabase
         .from('Student')
         .delete()
         .eq('id', id);
-      
+
       if (studentError) {
         throw new Error(`Error al eliminar estudiante: ${studentError.message}`);
       }
-      
-      // Eliminar el usuario de Auth
-      const { error: authError } = await supabase.auth.admin.deleteUser(id);
-      
-      if (authError) {
-        throw new Error(`Error al eliminar usuario: ${authError.message}`);
+
+      // No intentamos eliminar el usuario de Auth desde el cliente
+      // En su lugar, llamamos a una API del servidor para manejar esto
+      try {
+        const response = await fetch(`/api/delete-user?id=${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.warn('No se pudo eliminar el usuario de Auth, pero el estudiante fue eliminado:', errorData);
+          // No lanzamos error aquí para que la UI considere exitosa la eliminación del estudiante
+        }
+      } catch (error) {
+        console.warn('Error al llamar a la API para eliminar usuario:', error);
+        // Igualmente no lanzamos error para que la UI considere exitosa la eliminación
       }
     },
     {
