@@ -4,6 +4,7 @@ import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Subject, SubjectListParams, SubjectListResult, CreateSubjectParams, UpdateSubjectParams } from '@/utils/types/subject';
 import { createClient } from '@/utils/supabase/client'; // Importar para filtros
+import { useQueryClient } from '@tanstack/react-query';
 
 /**
  * Hook para obtener la lista de asignaturas con filtrado y paginación optimizado
@@ -127,6 +128,8 @@ export function useSubjectList(params: SubjectListParams & { userRole?: string; 
  * Función para crear una nueva asignatura (optimizada con RPC)
  */
 export function useCreateSubject() {
+  const queryClient = useQueryClient();
+
   return useSupabaseMutation<CreateSubjectParams, { id: number }>(
     async (supabase, params) => {
       const { name, teachers } = params;
@@ -154,49 +157,88 @@ export function useCreateSubject() {
       $$;
       */
 
-      const { data, error } = await supabase.rpc('create_subject_with_teachers', {
-        subject_name: name,
-        teacher_ids: teachers || []
-      });
+      try {
+        //1 Insertar la asignatura
+        const { data: subjectData, error: subjectError } = await supabase
+          .from('Subject')
+          .insert({ name })
+          .select('id')
+          .single();
 
-      if (error) {
-        console.error("Error creating subject via RPC:", error);
-        throw new Error(`Error al crear asignatura: ${error.message}`);
-      }
-
-      // El RPC devuelve el ID directamente
-      return { id: data as number };
-
-      // Código Original (menos seguro)
-      /*
-      const { data, error } = await supabase
-        .from('Subject')
-        .insert({ name })
-        .select('id')
-        .single();
-      
-      if (error) {
-        console.error("Error inserting subject:", error);
-        throw new Error(`Error al crear asignatura: ${error.message}`);
-      }
-      
-      if (teachers && teachers.length > 0 && data.id) {
-        const teacherSubjects = teachers.map(teacherId => ({ teacherId, subjectId: data.id }));
-        const { error: relationError } = await supabase.from('subject_teacher').insert(teacherSubjects);
-        if (relationError) {
-            // Intentar borrar la asignatura creada si falla la relación?
-            console.error("Error inserting subject_teacher relations:", relationError);
-            throw new Error(`Error al asignar profesores: ${relationError.message}`);
+        if (subjectError) {
+          console.error("Error al crear la asignatura:", subjectError);
+          throw new Error(`Error al crear asignatura: ${subjectError.message}`);
         }
+
+        //2 Insertar  relaciones con profesores en caso de que existan
+        if (teachers && teachers.length > 0) {
+          const teacherConnections = teachers.map(teacherId => ({
+            teacherId,
+            subjectId: subjectData.id
+          }));
+
+          const { error: realtionError } = await supabase
+            .from('subject_teacher').
+            insert(teacherConnections);
+
+          if (realtionError) {
+            console.error("Error al asignar profesores:", realtionError);
+            throw new Error(`Error al asignar profesores: ${realtionError.message}`);
+          }
+        }
+
+        // const { data, error } = await supabase.rpc('create_subject_with_teachers', {
+        //   subject_name: name,
+        //   teacher_ids: teachers || []
+        // });
+
+        // if (error) {
+        //   console.error("Error creating subject via RPC:", error);
+        //   throw new Error(`Error al crear asignatura: ${error.message}`);
+        // }
+
+        // El RPC devuelve el ID directamente
+        // return { id: data as number };
+
+        // Código Original (menos seguro)
+        /*
+        const { data, error } = await supabase
+        .from('Subject')
+  .insert({ name })
+  .select('id')
+  .single();
+  
+  if (error) {
+    console.error("Error inserting subject:", error);
+    throw new Error(`Error al crear asignatura: ${error.message}`);
+    }
+    
+    if (teachers && teachers.length > 0 && data.id) {
+      const teacherSubjects = teachers.map(teacherId => ({ teacherId, subjectId: data.id }));
+      const { error: relationError } = await supabase.from('subject_teacher').insert(teacherSubjects);
+      if (relationError) {
+        // Intentar borrar la asignatura creada si falla la relación?
+        console.error("Error inserting subject_teacher relations:", relationError);
+        throw new Error(`Error al asignar profesores: ${relationError.message}`);
+        }
+        }
+        return data as { id: number };
+        */
+        return { id: subjectData.id };
+      } catch (error: any) {
+        console.error("Error creating subject:", error);
+        throw error;
       }
-      return data as { id: number };
-      */
     },
     {
-      invalidateQueries: [['subject', 'list']],
-      onError: (error) => {
-        console.error("Mutation error (Create Subject):", error);
+      onSuccess: () => {
+        // Invalidar consultas relacionadas para actualizar la UI
+        queryClient.invalidateQueries({ queryKey: ['subject'] });
       }
+      // invalidateQueries: [['subject', 'list']],
+      // onError: (error) => {
+      //   console.error("Mutation error (Create Subject):", error);
+      // }
     }
   );
 }
@@ -310,6 +352,8 @@ export function useUpdateSubject() {
  * Función para eliminar una asignatura (optimizada con RPC)
  */
 export function useDeleteSubject() {
+  const queryClient = useQueryClient();
+
   return useSupabaseMutation<{ id: number }, void>(
     async (supabase, { id }) => {
 
@@ -335,37 +379,84 @@ export function useDeleteSubject() {
       END;
       $$;
       */
-      const { error } = await supabase.rpc('delete_subject_and_relations', { subject_id_to_delete: id });
+      // const { error } = await supabase.rpc('delete_subject_and_relations', { subject_id_to_delete: id });
 
-      if (error) {
-        if (error.message.includes('SUBJECT_HAS_LESSONS')) {
-          throw new Error('SUBJECT_HAS_LESSONS'); // Error específico
-        }
-        console.error("Error deleting subject via RPC:", error);
-        throw new Error(`Error al eliminar asignatura: ${error.message}`);
-      }
+      // if (error) {
+      //   if (error.message.includes('SUBJECT_HAS_LESSONS')) {
+      //     throw new Error('SUBJECT_HAS_LESSONS'); // Error específico
+      //   }
+      //   console.error("Error deleting subject via RPC:", error);
+      //   throw new Error(`Error al eliminar asignatura: ${error.message}`);
+      // }
 
       // Código Original (menos seguro)
-      /*
-      const { error: relationError } = await supabase.from('subject_teacher').delete().eq('subjectId', id);
-      if (relationError) {
-         console.error("Error deleting subject_teacher relations:", relationError);
-         throw new Error(`Error al eliminar relaciones de profesores: ${relationError.message}`);
+
+      try {
+        // 1. Verificar si hay lecciones asociadas
+        const { data: lessons, error: lessonCheckError } = await supabase
+          .from('Lesson')
+          .select('id', { count: 'exact', head: true })
+          .eq('subjectId', id);
+
+        if (lessonCheckError) {
+          console.error("Error checking for lessons:", lessonCheckError);
+          throw new Error(`Error al verificar lecciones: ${lessonCheckError.message}`);
+        }
+
+        if (lessons && lessons.length > 0) {
+          throw new Error('SUBJECT_HAS_LESSONS');
+        }
+
+        // 2. Eliminar relaciones profesor-asignatura
+        const { error: relationError } = await supabase
+          .from('subject_teacher')
+          .delete()
+          .eq('subjectId', id);
+
+        if (relationError) {
+          console.error("Error deleting subject-teacher relations:", relationError);
+          throw new Error(`Error al eliminar relaciones con profesores: ${relationError.message}`);
+        }
+
+        // 3. Compruebe si la tabla class_subject existe antes de intentar eliminarla
+        const { data: tableExists } = await supabase
+          .from('information_schema.tables')
+          .select('table_name')
+          .eq('table_name', 'class_subject')
+          .eq('table_schema', 'public');
+
+        // Solo intente eliminar de class_subject si existe
+        if (tableExists && tableExists.length > 0) {
+          const { error: classRelationError } = await supabase
+            .from('class_subject')
+            .delete()
+            .eq('subjectId', id);
+
+          if (classRelationError) {
+            console.error("Error deleting class-subject relations:", classRelationError);
+            throw new Error(`Error al eliminar relaciones con clases: ${classRelationError.message}`);
+          }
+        }
+
+        // 4. Eliminar la asignatura
+        const { error: deleteError } = await supabase
+          .from('Subject')
+          .delete()
+          .eq('id', id);
+
+        if (deleteError) {
+          console.error("Error deleting subject:", deleteError);
+          throw new Error(`Error al eliminar asignatura: ${deleteError.message}`);
+        }
+      } catch (error: any) {
+        console.error("Error in delete subject process:", error);
+        throw error;
       }
-      const { error: classRelationError } = await supabase.from('ClassSubject').delete().eq('subjectId', id);
-      if (classRelationError) {
-         console.error("Error deleting ClassSubject relations:", classRelationError);
-         throw new Error(`Error al eliminar relaciones de clases: ${classRelationError.message}`);
-      }
-      const { error } = await supabase.from('Subject').delete().eq('id', id);
-      if (error) {
-         console.error("Error deleting subject record:", error);
-         throw new Error(`Error al eliminar asignatura: ${error.message}`);
-      }
-      */
     },
     {
-      invalidateQueries: [['subject', 'list']],
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['subject', 'list'] });
+      },
       onError: (error) => {
         console.error("Mutation error (Delete Subject):", error);
       }

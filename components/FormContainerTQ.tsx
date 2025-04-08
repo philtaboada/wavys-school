@@ -24,6 +24,7 @@ import ParentsForm from "./forms/ParentsForm";
 import { useDeleteParent } from "@/utils/queries/parentQueries";
 import SubjectForm from "./forms/SubjectForm";
 import { Attendance } from "@/utils/types/attendance";
+import { useDeleteSubject } from "@/utils/queries/subjectQueries";
 
 // Tipos para las entidades relacionadas
 interface StudentData {
@@ -90,6 +91,7 @@ export default function FormContainerTQ({
   const deleteStudentMutation = useDeleteStudent();
   const deleteAssignmentMutation = useDeleteAssignment();
   const deleteParentMutation = useDeleteParent();
+  const deleteSubjectMutation = useDeleteSubject();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
@@ -197,17 +199,30 @@ export default function FormContainerTQ({
           parents: parents || []
         });
       } else if (table === "subject") {
+        console.log('Cargando profesores para el formulario de asignaturas...');
+
         // Profesores para asignaturas
-        const { data: teachers } = await supabase
+        const { data: teachersData, error: teachersError } = await supabase
           .from('Teacher')
           .select('id, name, surname')
           .order('surname');
         
-        console.log("Teachers cargados para formulario de asignaturas:", teachers);
-        
-        setRelatedData({
-          teachers: teachers || []
-        });
+        if (teachersError) {
+          console.error('Error al cargar profesores:', teachersError);
+          throw new Error(`Error al cargar profesores: ${teachersError.message}`);
+        } else {
+          console.log('Profesores cargados:', teachersData);
+          setRelatedData(prev => ({
+            ...prev,
+            teachers: teachersData
+          }));
+        }
+
+        console.log('Profesores cargados:', teachersData?.length || 0);
+        setRelatedData(prev => ({
+          ...prev,
+          teachers: teachersData || []
+        }));
       }
     } catch (error) {
       console.error('Error al cargar datos relacionados:', error);
@@ -225,14 +240,26 @@ export default function FormContainerTQ({
 
   // Manejar la eliminación
   const handleDelete = async () => {
-    //if (!id) return;
+    console.log("handleDelete called for table:", table);
+    console.log("Data to delete:", data);
+    console.log("ID from props:", id);
+  
+    // Use either data.id or id from props
+    const itemId = data?.id || id;
+  
+    if (!itemId) {
+      console.error("No ID found in data object or props");
+      toast.error("Error: No se pudo identificar el elemento a eliminar");
+      return;
+    }
     
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro?");
-    if (!confirmed) return;
 
-    setIsLoading(true);
+    if (!confirmed) return;
     
     try {
+      setIsLoading(true);
+
       if (table === "parent") {
         console.log("Intentando eliminar padre con ID:", id);
       
@@ -327,8 +354,31 @@ export default function FormContainerTQ({
             setIsLoading(false);
           }
         });
+      } else if (table === "subject") {
+        console.log("Deleting subject with ID:", itemId);
+
+        deleteSubjectMutation.mutate({ id: itemId }, {
+          onSuccess: () => {
+            toast.success("Asignatura eliminada correctamente");
+            router.refresh();
+            router.push('/protected/list/subjects');
+          },
+          onError: (error) => {
+            toast.error(`Error al eliminar asignatura: ${error.message}`);
+            console.error("Error deleting subject:", error);
+
+             // Handle specific error for subjects with lessons
+            if (error.message === 'SUBJECT_HAS_LESSONS') {
+              toast.error('No se puede eliminar esta asignatura porque tiene lecciones asociadas');
+            }
+          },
+          onSettled: () => {
+            setIsLoading(false);
+          }
+        });
       }
-    } catch (error) {
+      setOpen(false);
+    } catch (error: any) {
       console.error("Error en handleDelete:", error);
       toast.error("Error al procesar la solicitud de eliminación");
       setIsLoading(false);
