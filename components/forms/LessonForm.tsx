@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -6,50 +6,69 @@ import { useForm } from "react-hook-form";
 import InputField from "../InputField";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
-import { useCreateExam, useUpdateExam } from "@/utils/queries/examQueries";
+import { useCreateLesson, useUpdateLesson } from "@/utils/queries/lessonQueries";
 import { z } from "zod";
 
+// Enumeración para los días de la semana
+enum Day {
+  MONDAY = "MONDAY",
+  TUESDAY = "TUESDAY",
+  WEDNESDAY = "WEDNESDAY",
+  THURSDAY = "THURSDAY",
+  FRIDAY = "FRIDAY",
+  SATURDAY = "SATURDAY",
+  SUNDAY = "SUNDAY"
+}
+
 // Definimos el esquema de validación
-const examSchema = z.object({
+const lessonSchema = z.object({
   id: z.coerce.number().optional(),
-  title: z.string().min(1, { message: "Título del examen es requerido!" }),
-  startTime: z.coerce.date({ message: "Fecha de inicio es requerida!" }),
-  endTime: z.coerce.date({ message: "Fecha de finalización es requerida!" }),
-  lessonId: z.coerce.number().min(1, { message: "Lección es requerida!" }),
+  name: z.string().min(1, { message: "Nombre de la lección es requerido!" }),
+  day: z.nativeEnum(Day, { message: "Día de la semana es requerido!" }),
+  startTime: z.coerce.date({ message: "Hora de inicio es requerida!" }),
+  endTime: z.coerce.date({ message: "Hora de finalización es requerida!" }),
+  classId: z.coerce.number().min(1, { message: "Clase es requerida!" }),
+  teacherId: z.string().min(1, { message: "Profesor es requerido!" }),
+  subjectId: z.coerce.number().min(1, { message: "Asignatura es requerida!" }),
 });
 
 // Tipo inferido del esquema de validación
-type ExamSchema = z.infer<typeof examSchema>;
+type LessonSchema = z.infer<typeof lessonSchema>;
 
-// Definimos una interfaz para el examen que coincide con el modelo
-interface ExamData {
+// Definimos una interfaz para la lección que coincide con el modelo
+interface LessonData {
   id?: number;
-  title: string;
+  name: string;
+  day: Day;
   startTime: Date;
   endTime: Date;
-  lessonId: number;
+  subjectId: number;
+  classId: number;
+  teacherId: string;
 }
 
-interface ExamFormProps {
+interface LessonFormProps {
   type: "create" | "update";
-  data?: ExamData;
+  data?: LessonData;
   setOpen: (open: boolean) => void;
   relatedData?: {
-    lessons?: { id: number; name: string }[];
+    subjects?: { id: number; name: string }[];
+    classes?: { id: number; name: string }[];
+    teachers?: { id: string; name: string; surname: string }[];
   };
 }
 
-const ExamForm = ({
+const LessonForm = ({
   type,
   data,
   setOpen,
   relatedData
-}: ExamFormProps) => {
+}: LessonFormProps) => {
 
   // Depuración para ver qué datos estamos recibiendo
-  console.log("ExamForm - Tipo:", type);
-  console.log("ExamForm - Data recibida:", data);
-  console.log("ExamForm - RelatedData recibida:", relatedData);
+  console.log("LessonForm - Tipo:", type);
+  console.log("LessonForm - Data recibida:", data);
+  console.log("LessonForm - RelatedData recibida:", relatedData);
 
   // Formatear las horas para el formato de entrada datetime-local
   const formatTimeForInput = (dateTime?: Date | string) => {
@@ -63,14 +82,17 @@ const ExamForm = ({
     handleSubmit,
     formState: { errors },
     reset
-  } = useForm<ExamSchema>({
-    resolver: zodResolver(examSchema),
+  } = useForm<LessonSchema>({
+    resolver: zodResolver(lessonSchema),
     defaultValues: {
       id: data?.id,
-      title: data?.title || "",
+      name: data?.name || "",
+      day: data?.day || undefined,
       startTime: data?.startTime ? new Date(data.startTime) : undefined,
       endTime: data?.endTime ? new Date(data.endTime) : undefined,
-      lessonId: data?.lessonId
+      subjectId: data?.subjectId,
+      classId: data?.classId,
+      teacherId: data?.teacherId || ""
     }
   });
 
@@ -78,8 +100,8 @@ const ExamForm = ({
   const [isLoading, setIsLoading] = useState(false);
 
   // Utilizar los hooks de mutación de TanStack Query
-  const createMutation = useCreateExam();
-  const updateMutation = useUpdateExam();
+  const createMutation = useCreateLesson();
+  const updateMutation = useUpdateLesson();
 
   const router = useRouter();
 
@@ -91,7 +113,8 @@ const ExamForm = ({
       console.log('Formulario de datos antes del envío:', formData);
 
       // Validar los campos requeridos
-      if (!formData.title || !formData.startTime || !formData.endTime || !formData.lessonId) {
+      if (!formData.name || !formData.day || !formData.startTime || !formData.endTime 
+          || !formData.subjectId || !formData.classId || !formData.teacherId) {
         setCustomError("Por favor, complete todos los campos requeridos.");
         setIsLoading(false);
         return;
@@ -99,26 +122,29 @@ const ExamForm = ({
 
       // Validar que la hora de finalización sea posterior a la de inicio
       if (formData.startTime && formData.endTime && formData.startTime >= formData.endTime) {
-        setCustomError("La fecha de finalización debe ser posterior a la fecha de inicio.");
+        setCustomError("La hora de finalización debe ser posterior a la hora de inicio.");
         setIsLoading(false);
         return;
       }
 
-      // Preparar los datos del examen
-      const examData = {
-        title: formData.title.trim(),
+      // Preparar los datos de la lección
+      const lessonData = {
+        name: formData.name.trim(),
+        day: formData.day,
         startTime: formData.startTime,
         endTime: formData.endTime,
-        lessonId: formData.lessonId,
+        subjectId: formData.subjectId,
+        classId: formData.classId,
+        teacherId: formData.teacherId,
       };
 
-      console.log('Datos para el envío:', examData);
+      console.log('Datos para el envío:', lessonData);
 
       if (type === "create") {
-        console.log('Enviando datos para crear examen:', examData);
-        createMutation.mutate(examData as any, {
+        console.log('Enviando datos para crear lección:', lessonData);
+        createMutation.mutate(lessonData as any, {
           onSuccess: () => {
-            toast.success("Examen creado correctamente");
+            toast.success("Lección creada correctamente");
             reset();
             setOpen(false);
             router.refresh();
@@ -131,17 +157,17 @@ const ExamForm = ({
         });
       } else if (type === 'update' && data?.id) {
         updateMutation.mutate({
-          ...examData,
+          ...lessonData,
           id: data.id,
         } as any, {
           onSuccess: () => {
-            toast.success("Examen actualizado correctamente");
+            toast.success("Lección actualizada correctamente");
             setOpen(false);
             router.refresh();
             setIsLoading(false);
           },
           onError: (error) => {
-            console.error('Error al actualizar el examen:', error);
+            console.error('Error al actualizar la lección:', error);
             setCustomError(error.message);
             setIsLoading(false);
           }
@@ -165,19 +191,19 @@ const ExamForm = ({
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-white relative z-10 flex items-center gap-2 sm:gap-3">
           <span className="bg-white/20 p-2 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white sm:hidden">
-              <path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2c0 1.1.9 2 2 2h5v5c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2h-2z"></path>
+              <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
             </svg>
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white hidden sm:block md:hidden">
-              <path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2c0 1.1.9 2 2 2h5v5c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2h-2z"></path>
+              <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
             </svg>
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white hidden md:block">
-              <path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2c0 1.1.9 2 2 2h5v5c0 1.1.9 2 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2h-2z"></path>
+              <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
             </svg>
           </span>
-          <span className="truncate">{type === "create" ? "Crear nuevo examen" : "Actualizar examen"}</span>
+          <span className="truncate">{type === "create" ? "Crear nueva lección" : "Actualizar lección"}</span>
         </h1>
         <p className="text-white/80 mt-2 ml-10 sm:ml-12 text-sm sm:text-base max-w-3xl">
-          Complete la información a continuación para {type === "create" ? "registrar un nuevo examen en el sistema" : "actualizar los datos del examen seleccionado"}
+          Complete la información a continuación para {type === "create" ? "registrar una nueva lección en el sistema" : "actualizar los datos de la lección seleccionada"}
         </p>
       </div>
       
@@ -185,88 +211,77 @@ const ExamForm = ({
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden relative w-full">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
         
-        {/* Sección de información del examen */}
+        {/* Sección de información de la lección */}
         <div className="px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
             <div className="p-2 rounded-full bg-indigo-100">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600 sm:hidden">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
               </svg>
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600 hidden sm:block lg:hidden">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
               </svg>
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-600 hidden lg:block">
-                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
-                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
-                <line x1="6" y1="6" x2="6.01" y2="6"></line>
-                <line x1="6" y1="18" x2="6.01" y2="18"></line>
+                <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
               </svg>
             </div>
-            <span className="font-semibold text-gray-800 text-base sm:text-lg lg:text-xl">Información del examen</span>
+            <span className="font-semibold text-gray-800 text-base sm:text-lg lg:text-xl">Información de la lección</span>
           </div>
           <p className="text-xs sm:text-sm text-gray-500 mb-4 ml-8 sm:ml-11">Los campos con <span className="text-pink-500">*</span> son obligatorios</p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-6">
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
-                label="Título del examen *"
-                name="title"
-                defaultValue={data?.title}
+                label="Nombre de la lección *"
+                name="name"
+                defaultValue={data?.name}
                 register={register}
-                error={errors?.title}
+                error={errors?.name}
                 className="bg-gray-50 focus:bg-white"
                 icon={
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
                   </svg>
                 }
               />
             </div>
-
+            
             <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"></path>
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
                 </svg>
-                Lección asociada <span className="text-pink-500">*</span>
+                Día de la semana <span className="text-pink-500">*</span>
               </label>
               <select
                 className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
-                {...register("lessonId")}
-                defaultValue={data?.lessonId}
+                {...register("day")}
+                defaultValue={data?.day}
               >
-                <option value="">Seleccionar lección</option>
-                {relatedData?.lessons && relatedData.lessons.length > 0 ? (
-                  relatedData.lessons.map((lesson) => (
-                    <option value={lesson.id} key={lesson.id}>
-                      {lesson.name}
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No hay lecciones disponibles</option>
-                )}
+                <option value="">Seleccionar día</option>
+                <option value="MONDAY">Lunes</option>
+                <option value="TUESDAY">Martes</option>
+                <option value="WEDNESDAY">Miércoles</option>
+                <option value="THURSDAY">Jueves</option>
+                <option value="FRIDAY">Viernes</option>
+                <option value="SATURDAY">Sábado</option>
+                <option value="SUNDAY">Domingo</option>
               </select>
-              {errors.lessonId?.message && (
+              {errors.day?.message && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                  {errors.lessonId.message.toString()}
+                  {errors.day.message.toString()}
                 </p>
               )}
             </div>
 
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
-                label="Fecha y hora de inicio *"
+                label="Hora de inicio *"
                 name="startTime"
                 type="datetime-local"
                 defaultValue={formatTimeForInput(data?.startTime)}
@@ -275,10 +290,8 @@ const ExamForm = ({
                 className="bg-gray-50 focus:bg-white"
                 icon={
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
                   </svg>
                 }
               />
@@ -286,7 +299,7 @@ const ExamForm = ({
 
             <div className="transform transition-all duration-300 hover:-translate-y-1">
               <InputField
-                label="Fecha y hora de finalización *"
+                label="Hora de finalización *"
                 name="endTime"
                 type="datetime-local"
                 defaultValue={formatTimeForInput(data?.endTime)}
@@ -295,13 +308,107 @@ const ExamForm = ({
                 className="bg-gray-50 focus:bg-white"
                 icon={
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                    <line x1="3" y1="10" x2="21" y2="10"></line>
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
                   </svg>
                 }
               />
+            </div>
+            
+            <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500">
+                  <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                  <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                </svg>
+                Asignatura <span className="text-pink-500">*</span>
+              </label>
+              <select
+                className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
+                {...register("subjectId")}
+                defaultValue={data?.subjectId}
+              >
+                <option value="">Seleccionar asignatura</option>
+                {relatedData?.subjects && relatedData.subjects.length > 0 ? (
+                  relatedData.subjects.map((subject) => (
+                    <option value={subject.id} key={subject.id}>
+                      {subject.name}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No hay asignaturas disponibles</option>
+                )}
+              </select>
+              {errors.subjectId?.message && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  {errors.subjectId.message.toString()}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-indigo-500">
+                  <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                  <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
+                </svg>
+                Clase <span className="text-pink-500">*</span>
+              </label>
+              <select
+                className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
+                {...register("classId")}
+                defaultValue={data?.classId}
+              >
+                <option value="">Seleccionar clase</option>
+                {relatedData?.classes && relatedData.classes.length > 0 ? (
+                  relatedData.classes.map((classItem) => (
+                    <option value={classItem.id} key={classItem.id}>
+                      {classItem.name}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No hay clases disponibles</option>
+                )}
+              </select>
+              {errors.classId?.message && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  {errors.classId.message.toString()}
+                </p>
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
+              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                Profesor <span className="text-pink-500">*</span>
+              </label>
+              <select
+                className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
+                {...register("teacherId")}
+                defaultValue={data?.teacherId}
+              >
+                <option value="">Seleccionar profesor</option>
+                {relatedData?.teachers && relatedData.teachers.length > 0 ? (
+                  relatedData.teachers.map((teacher) => (
+                    <option value={teacher.id} key={teacher.id}>
+                      {teacher.name} {teacher.surname}
+                    </option>
+                  ))
+                ) : (
+                  <option disabled>No hay profesores disponibles</option>
+                )}
+              </select>
+              {errors.teacherId?.message && (
+                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                  {errors.teacherId.message.toString()}
+                </p>
+              )}
             </div>
             
             {data && (
@@ -361,7 +468,7 @@ const ExamForm = ({
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 6 9 17l-5-5"></path>
               </svg>
-              {type === "create" ? "Crear examen" : "Actualizar examen"}
+              {type === "create" ? "Crear lección" : "Actualizar lección"}
             </>
           )}
         </button>
@@ -370,4 +477,4 @@ const ExamForm = ({
   );
 };
 
-export default ExamForm;
+export default LessonForm; 

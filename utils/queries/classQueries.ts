@@ -3,7 +3,6 @@
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
 import { Class, ClassListParams, ClassListResult, CreateClassParams, UpdateClassParams } from '@/utils/types/class';
-import { createClient } from '@/utils/supabase/client'; // Importar para usar en filtros
 
 /**
  * Hook para obtener la lista de clases con filtrado y paginación optimizado
