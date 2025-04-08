@@ -93,12 +93,23 @@ export const useAnnouncements = (): AnnouncementState => {
       let classIds: string[] = [];
       
       if (userRole === 'teacher') {
-        const { data: classes } = await supabase
-          .from('Lesson')
-          .select('classId')
-          .eq('teacherId', userId);
-        
-        classIds = classes?.map(c => c.classId) || [];
+        try {
+          const { data: classes, error } = await supabase
+            .from('class')
+            .select('id')
+            .eq('teacher_id', userId);
+          
+          if (error) {
+            console.error('Error fetching teacher classes:', error);
+            classIds = [];
+          } else {
+            classIds = classes?.map(c => c.id) || [];
+            console.log('Teacher class IDs:', classIds);
+          }
+        } catch (e) {
+          console.error('Error inesperado:', e);
+          classIds = [];
+        }
       } else if (userRole === 'student') {
         const { data: classes } = await supabase
           .from('Student')
@@ -115,6 +126,7 @@ export const useAnnouncements = (): AnnouncementState => {
         classIds = classes?.map(c => c.classId) || [];
       }
       
+      console.log('Setting class IDs:', classIds);
       setClassIds(classIds);
       setIsClassIdsLoaded(true);
     };
@@ -140,11 +152,6 @@ export const useAnnouncements = (): AnnouncementState => {
         .order('date', { ascending: false })
         .limit(6);
 
-      // Filter by user_id
-      if (userId) {
-        query = query.eq('announcement_reads.user_id', userId);
-      }
-
       // Filter by classes if not admin
       if (userRole !== 'admin') {
         if (classIds.length > 0) {
@@ -158,11 +165,16 @@ export const useAnnouncements = (): AnnouncementState => {
         console.log('Admin user, showing all announcements');
       }
 
+      // Left join with announcement_reads para ver el estado de lectura
+      if (userId) {
+        query = query.eq('announcement_reads.user_id', userId);
+      }
+
       const { data, error } = await query;
       
       if (error) {
         console.error('Supabase error:', error);
-        throw new Error(`Error al obtener anuncios: ${error.message}`);
+        return [];
       }
 
       console.log('Announcements fetched:', data?.length || 0);
