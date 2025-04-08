@@ -11,6 +11,7 @@ import { useUser } from '@/utils/hooks/useUser';
 import { ArrowDownNarrowWide, ListFilterPlus } from 'lucide-react';
 import { Subject } from '@/utils/types/subject';
 import Loading from '../loading';
+import { useTeacherList } from '@/utils/queries/teacherQueries';
 
 interface SubjectClientTQProps {
   initialRole?: string;
@@ -72,6 +73,28 @@ export default function SubjectClientTQ({ initialRole, initialUserId }: SubjectC
     userRole,
     userId
   });
+
+  // Añadir este hook para cargar los profesores
+  const { data: teachersData, isLoading: teachersLoading } = useTeacherList({
+    page: 1,
+    search: ''
+  });
+
+  const handleCreateSubject = () => {
+    console.log('handleCreateSubject - Datos de profesores disponibles:', teachersData?.data || []);
+
+    return (
+      <FormContainerTQ
+        table="subject"
+        type="create"
+        extraProps={{
+          relatedData: {
+            teachers: teachersData?.data || []
+          }
+        }}
+      />
+    );
+  };
 
   // Función para intentar cargar los datos nuevamente sin recargar la página
   const handleRefetch = async () => {
