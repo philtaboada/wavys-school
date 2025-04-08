@@ -10,6 +10,12 @@ import AttendanceFormTQ from "@/components/forms/AttendanceFormTQ";
 import TeacherFormTQ from "@/components/forms/TeacherFormTQ";
 import StudentFormTQ from "@/components/forms/StudentFormTQ";
 import AssignmentFormTQ from "@/components/forms/AssignmentFormTQ";
+import ExamForm from "./forms/ExamForm";
+import EventForm from "./forms/EventForm";
+import AnnouncementForm from "./forms/AnnouncementForm";
+import LessonForm from "./forms/LessonForm";
+import ResultForm from "./forms/ResultForm";
+import ClassForm from "./forms/ClassForm";
 import { createClient } from "@/utils/supabase/client";
 import { useDeleteAttendance } from "@/utils/queries/attendanceQueries";
 import { useDeleteTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
@@ -25,6 +31,12 @@ import { useDeleteParent } from "@/utils/queries/parentQueries";
 import SubjectForm from "./forms/SubjectForm";
 import { Attendance } from "@/utils/types/attendance";
 import { useDeleteSubject } from "@/utils/queries/subjectQueries";
+import { useDeleteClass } from "@/utils/queries/classQueries";
+import { useDeleteExam } from "@/utils/queries/examQueries";
+import { useDeleteLesson } from "@/utils/queries/lessonQueries";
+import { useDeleteEvent } from "@/utils/queries/eventQueries";
+import { useDeleteAnnouncement } from "@/utils/queries/announcementQueries";
+import { useDeleteResult } from "@/utils/queries/resultQueries";
 
 // Tipos para las entidades relacionadas
 interface StudentData {
@@ -92,6 +104,7 @@ export default function FormContainerTQ({
   const deleteAssignmentMutation = useDeleteAssignment();
   const deleteParentMutation = useDeleteParent();
   const deleteSubjectMutation = useDeleteSubject();
+  const deleteClassMutation = useDeleteClass();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
@@ -217,13 +230,54 @@ export default function FormContainerTQ({
             teachers: teachersData
           }));
         }
-
         console.log('Profesores cargados:', teachersData?.length || 0);
         setRelatedData(prev => ({
           ...prev,
           teachers: teachersData || []
         }));
+      } else if (table === "class") {
+      console.log('Cargando datos relacionados para el formulario de clases...');
+      
+      // Cargar profesores para supervisores
+      const { data: teachersData, error: teachersError } = await supabase
+        .from('Teacher')
+        .select('id, name, surname')
+        .order('surname');
+      
+      if (teachersError) {
+        console.error('Error al cargar profesores:', teachersError);
+        throw new Error(`Error al cargar profesores: ${teachersError.message}`);
       }
+      
+      // Cargar grados
+      const { data: gradesData, error: gradesError } = await supabase
+        .from('Grade')
+        .select('id, level')
+        .order('level');
+      
+      if (gradesError) {
+        console.error('Error al cargar grados:', gradesError);
+        throw new Error(`Error al cargar grados: ${gradesError.message}`);
+      }
+
+      // Transformar los datos para incluir un nombre generado basado en el nivel
+      const formattedGrades = gradesData?.map(grade => ({
+        id: grade.id,
+        level: grade.level,
+        name: `Grado ${grade.level}` // Generar un nombre basado en el nivel  
+      })) || [];
+
+      console.log('Datos relacionados cargados para clases:', {
+        teachers: teachersData?.length || 0,
+        grades: formattedGrades?.length || 0
+      });
+      
+      setRelatedData({
+        teachers: teachersData || [],
+        grades: formattedGrades || []
+      });
+    }
+      
     } catch (error) {
       console.error('Error al cargar datos relacionados:', error);
     } finally {
@@ -367,10 +421,27 @@ export default function FormContainerTQ({
             toast.error(`Error al eliminar asignatura: ${error.message}`);
             console.error("Error deleting subject:", error);
 
-             // Handle specific error for subjects with lessons
+            // Handle specific error for subjects with lessons
             if (error.message === 'SUBJECT_HAS_LESSONS') {
               toast.error('No se puede eliminar esta asignatura porque tiene lecciones asociadas');
             }
+          },
+          onSettled: () => {
+            setIsLoading(false);
+          }
+        });
+      } else if (table === "class") {
+        console.log("Deleting class with ID:", itemId);
+        
+        deleteClassMutation.mutate({ id: itemId }, {
+          onSuccess: () => {
+            toast.success("Clase eliminada correctamente");
+            router.refresh();
+            router.push('/protected/list/classes');
+          },
+          onError: (error) => {
+            toast.error(`Error al eliminar clase: ${error.message}`);
+            console.error("Error deleting class:", error);
           },
           onSettled: () => {
             setIsLoading(false);
@@ -454,6 +525,19 @@ export default function FormContainerTQ({
         />
       );
     }
+
+    if (table === "class" && (type === "create" || type === "update")) {
+      return (
+        <ClassForm
+          type={type}
+          data={data as Class}
+          setOpen={setOpen}
+          relatedData={relatedData}
+        />
+      );
+    }
+
+
     
     // Agregar más formularios para otras tablas según sea necesario
     return <div>Formulario no disponible para esta tabla</div>;

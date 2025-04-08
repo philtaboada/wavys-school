@@ -39,7 +39,7 @@ export function useClassList(params: ClassListParams & { userRole?: string; user
             // Filtrar nulls/undefined y obtener únicos
             specificClassIds = Array.from(new Set(parentStudents.map(s => s.classId).filter(id => id != null))) as number[];
             if (specificClassIds.length === 0) {
-                 return { data: [], count: 0 }; // Hijos sin clase asignada
+              return { data: [], count: 0 }; // Hijos sin clase asignada
             }
           } else {
             return { data: [], count: 0 }; // Padre sin hijos
@@ -73,7 +73,7 @@ export function useClassList(params: ClassListParams & { userRole?: string; user
 
       // Aplicar filtro por rol de profesor supervisor
       if (userRole === 'teacher' && userId) {
-         query = query.eq('supervisorId', userId);
+        query = query.eq('supervisorId', userId);
       }
 
       // Aplicar filtro por IDs específicos (para student/parent)
@@ -89,9 +89,9 @@ export function useClassList(params: ClassListParams & { userRole?: string; user
       // Ejecutar la consulta única
       // Usamos un tipo intermedio porque Supabase anida el count de Student
       type ClassWithNestedCount = Omit<Class, '_count'> & {
-           Grade?: { id: number; level: number } | null;
-           Supervisor?: { id: string; name: string; surname: string } | null;
-           Student: { count: number }[]; // Supabase devuelve un array con un objeto count
+        Grade?: { id: number; level: number } | null;
+        Supervisor?: { id: string; name: string; surname: string } | null;
+        Student: { count: number }[]; // Supabase devuelve un array con un objeto count
       };
       const { data, error, count } = await query.returns<ClassWithNestedCount[]>();
 
@@ -149,7 +149,7 @@ export function useCreateClass() {
     {
       invalidateQueries: [['class', 'list']],
       onError: (error) => {
-         console.error("Mutation error (Create Class):", error);
+        console.error("Mutation error (Create Class):", error);
       }
     }
   );
@@ -180,7 +180,7 @@ export function useUpdateClass() {
     {
       invalidateQueries: [['class', 'list']],
       onError: (error) => {
-         console.error("Mutation error (Update Class):", error);
+        console.error("Mutation error (Update Class):", error);
       }
     }
   );
@@ -212,10 +212,11 @@ export function useDeleteClass() {
       $$;
       */
 
-      const { error } = await supabase.rpc('delete_class_if_empty', { class_id_to_delete: id });
+      // const { error } = await supabase.rpc('delete_class_if_empty', { class_id_to_delete: id });
 
       // Manejo de error original (si no se usa RPC)
-      /*
+
+
       const { count, error: countError } = await supabase
         .from('Student')
         .select('id', { count: 'exact', head: true })
@@ -226,31 +227,32 @@ export function useDeleteClass() {
         throw new Error(`Error al verificar estudiantes: ${countError.message}`);
       }
 
+      // Si hay estudiantes, no permitir eliminar la clase
       if (count && count > 0) {
         // Lanzar error específico para que el frontend pueda mostrar mensaje útil
         throw new Error(`CLASS_HAS_STUDENTS:${count}`); // Usar un código/mensaje específico
       }
 
+      // Si no hay estudiantes, proceder con la eliminación
       const { error } = await supabase
         .from('Class')
         .delete()
         .eq('id', id);
-      */
 
       if (error) {
-         // Intentar parsear el mensaje de error si viene de la función RPC
-         if (error.message.includes('Cannot delete class')) {
-            throw new Error('CLASS_HAS_STUDENTS'); // Lanzar error específico
-         }
-         console.error("Error deleting class:", error);
-         throw new Error(`Error al eliminar clase: ${error.message}`);
+        // Intentar parsear el mensaje de error si viene de la función RPC
+        if (error.message.includes('Cannot delete class')) {
+          throw new Error('CLASS_HAS_STUDENTS'); // Lanzar error específico
+        }
+        console.error("Error deleting class:", error);
+        throw new Error(`Error al eliminar clase: ${error.message}`);
       }
     },
     {
       invalidateQueries: [['class', 'list']],
       onError: (error) => {
-         console.error("Mutation error (Delete Class):", error);
-         // No relanzar aquí, el error ya se lanzó desde la función de mutación
+        console.error("Mutation error (Delete Class):", error);
+        // No relanzar aquí, el error ya se lanzó desde la función de mutación
       }
     }
   );

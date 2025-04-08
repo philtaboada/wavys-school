@@ -220,6 +220,7 @@ const ClassForm = ({
               </label>
               <select
                 className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
+                id="supervisorId"
                 {...register("supervisorId")}
                 defaultValue={data?.supervisorId || ""}
               >
@@ -231,19 +232,19 @@ const ClassForm = ({
                     </option>
                   ))
                 ) : (
-                  <option disabled>No hay profesores disponibles</option>
+                  <option value="" disabled>No hay profesores disponibles</option>
                 )}
               </select>
-              {errors.supervisorId?.message && (
+              {errors.supervisorId && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                  {errors.supervisorId.message.toString()}
+                  {errors.supervisorId.message}
                 </p>
               )}
             </div>
             
             <div className="flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
-              <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <label htmlFor="gradeId" className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-pink-500">
                   <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
                   <path d="M6 12v5c3 3 9 3 12 0v-5"></path>
@@ -252,24 +253,26 @@ const ClassForm = ({
               </label>
               <select
                 className="ring-[1.5px] ring-gray-300 p-3 rounded-lg text-sm w-full focus:ring-indigo-500 focus:ring-2 focus:outline-none transition duration-200 bg-gray-50 focus:bg-white"
+                id="gradeId"
                 {...register("gradeId")}
                 defaultValue={data?.gradeId ? data.gradeId.toString() : ""}
+                required
               >
                 <option value="">Seleccionar grado</option>
                 {relatedData?.grades && relatedData.grades.length > 0 ? (
                   relatedData.grades.map((grade) => (
-                    <option value={grade.id.toString()} key={grade.id}>
+                    <option value={grade.id} key={grade.id}>
                       {grade.name || grade.level}
                     </option>
                   ))
                 ) : (
-                  <option disabled>No hay grados disponibles</option>
+                  <option value="" disabled>No hay grados disponibles</option>
                 )}
               </select>
-              {errors.gradeId?.message && (
+              {errors.gradeId && (
                 <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-                  {errors.gradeId.message.toString()}
+                  {errors.gradeId.message}
                 </p>
               )}
             </div>
@@ -306,6 +309,7 @@ const ClassForm = ({
           type="button" 
           className="py-3 px-6 sm:px-8 border-2 border-gray-300 rounded-xl text-gray-700 hover:bg-gray-100 transition-all duration-300 font-medium text-base shadow-sm hover:shadow-md hover:border-gray-400 flex items-center justify-center gap-2 w-full sm:w-auto"
           onClick={() => setOpen(false)}
+          disabled={isLoading}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 6 6 18"></path>
