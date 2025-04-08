@@ -105,6 +105,7 @@ export default function FormContainerTQ({
   const deleteParentMutation = useDeleteParent();
   const deleteSubjectMutation = useDeleteSubject();
   const deleteClassMutation = useDeleteClass();
+  const deleteExamMutation = useDeleteExam();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
@@ -322,6 +323,42 @@ export default function FormContainerTQ({
           classes: classesData || [],
           teachers: teachersData || [],
           subjects: subjectsData || []
+        });
+      } else if (table === "exam") {
+        console.log('Cargando datos relacionados para exámenes...');
+      
+        // Cargar lecciones con información relacionada
+        const { data: lessonsData, error: lessonsError } = await supabase
+          .from('Lesson')
+          .select(`
+            id, 
+            name,
+            Subject:subjectId (id, name),
+            Class:classId (id, name),
+            Teacher:teacherId (id, name, surname)
+          `)
+          .order('name');
+      
+        if (lessonsError) {
+          console.error('Error al cargar lecciones:', lessonsError);
+          throw new Error(`Error al cargar lecciones: ${lessonsError.message}`);
+        }
+      
+        // Transformar los datos para mostrar información más completa en el selector
+        const lessons = lessonsData?.map((lesson: any) => ({
+          id: lesson.id,
+          name: `${lesson.name} - ${lesson.Subject?.name || 'Sin asignatura'} (${lesson.Class?.name || 'Sin clase'})`,
+          subject: lesson.Subject,
+          class: lesson.Class,
+          teacher: lesson.Teacher
+        }));
+      
+        console.log('Datos relacionados cargados para exámenes:', {
+          lessons: lessons?.length || 0
+        });
+      
+        setRelatedData({
+          lessons: lessons || []
         });
       }
       
@@ -550,6 +587,47 @@ export default function FormContainerTQ({
         toast.success("Lección eliminada correctamente");
         router.refresh();
         setOpen(false);
+      } else if (table === "exam") {
+        console.log("Intentando eliminar examen con ID:", id);
+      
+        // Verificar si el examen tiene resultados asociados
+        const supabase = createClient();
+      
+        // Verificar resultados
+        const { count: resultCount, error: resultError } = await supabase
+          .from('Result')
+          .select('id', { count: 'exact', head: true })
+          .eq('examId', id);
+      
+        if (resultError) {
+          console.error("Error al verificar resultados:", resultError);
+          toast.error(`Error al verificar resultados: ${resultError.message}`);
+          setIsLoading(false);
+          return;
+        }
+      
+        // Si hay resultados, no permitir eliminar
+        if (resultCount && resultCount > 0) {
+          console.log(`El examen tiene ${resultCount} resultados asociados`);
+          toast.error('No se puede eliminar este examen porque tiene resultados asociados');
+          setIsLoading(false);
+          return;
+        }
+      
+        // Eliminar el examen
+        await deleteExamMutation.mutateAsync({ id: Number(id) }, {
+          onSuccess: () => {
+            toast.success("Examen eliminado correctamente");
+            router.refresh();
+            setOpen(false);
+            setIsLoading(false);
+          },
+          onError: (error) => {
+            console.error("Error al eliminar examen:", error);
+            toast.error(`Error al eliminar examen: ${error.message}`);
+            setIsLoading(false);
+          }
+        });
       }
 
       setOpen(false);
@@ -652,7 +730,16 @@ export default function FormContainerTQ({
       );
     }
 
-
+    if (table === "exam" && (type === "create" || type === "update")) {
+      return (
+        <ExamForm
+          type={type}
+          data={data as any}
+          setOpen={setOpen}
+          relatedData={relatedData}
+        />
+      );
+    }
     
     // Agregar más formularios para otras tablas según sea necesario
     return <div>Formulario no disponible para esta tabla</div>;
