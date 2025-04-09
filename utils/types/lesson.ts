@@ -1,6 +1,9 @@
 export type Lesson = {
   id: number;
   name: string;
+  day: string;
+  startTime: string | Date;
+  endTime: string | Date;
   classId?: number;
   teacherId?: string;
   subjectId?: number;
