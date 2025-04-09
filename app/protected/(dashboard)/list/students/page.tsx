@@ -15,9 +15,16 @@ async function getStudents(params: {
   classId?: number;
   gradeId?: number;
   parentId?: string;
+  userRole?: string;
+  userId?: string;
 }): Promise<StudentListResult> {
     const supabase = await createClient();
-    const { page, search, classId, gradeId, parentId } = params;
+    const { page, search, classId, gradeId, parentId, userRole, userId } = params;
+
+    // --- Inicio: Logs de depuración ---
+    console.log(`[getStudents Debug] Received params:`, params);
+    console.log(`[getStudents Debug] userRole: ${userRole}, userId: ${userId}`);
+    // --- Fin: Logs de depuración ---
 
     let query = supabase
         .from('Student')
@@ -27,6 +34,44 @@ async function getStudents(params: {
           Grade (id, level),
           Parent (id, name, surname)
         `, { count: 'exact' });
+
+    if (userRole === 'teacher' && userId) {
+      // --- Inicio: Log de depuración ---
+      console.log(`[getStudents Debug] Applying TEACHER filter for userId: ${userId}`);
+      // --- Fin: Log de depuración ---
+      const { data: lessonData, error: lessonError } = await supabase
+        .from('Lesson')
+        .select('classId')
+        .eq('teacherId', userId);
+
+      if (lessonError) {
+        console.error("Error fetching teacher's classes:", lessonError);
+        return { data: [], count: 0 };
+      }
+
+      if (!lessonData || lessonData.length === 0) {
+        return { data: [], count: 0 };
+      }
+
+      const teacherClassIds = Array.from(new Set(lessonData.map(lesson => lesson.classId).filter(id => id != null)));
+
+      if (teacherClassIds.length === 0) {
+          return { data: [], count: 0 };
+      }
+
+      query = query.in('classId', teacherClassIds);
+
+    } else if (userRole && userRole !== 'admin') {
+        // --- Inicio: Log de depuración ---
+        console.log(`[getStudents Debug] Applying NON-ADMIN/NON-TEACHER filter for role: ${userRole}`);
+        // --- Fin: Log de depuración ---
+        console.warn(`User role "${userRole}" attempted to access student list without specific permissions.`);
+        return { data: [], count: 0 };
+    } else {
+        // --- Inicio: Log de depuración ---
+        console.log(`[getStudents Debug] Applying NO role filter (likely admin or unauthenticated/unexpected role): ${userRole}`);
+        // --- Fin: Log de depuración ---
+    }
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,surname.ilike.%${search}%,username.ilike.%${search}%,email.ilike.%${search}%`);
@@ -85,13 +130,13 @@ export default async function StudentListPage({
   const parentId = resolvedSearchParams?.parentId; // No necesita parse
 
   // QueryKey debe coincidir con useStudentList
-  // Incluir todos los parámetros usados por el hook
-  const queryKey = ['student', 'list', page, search, classId, gradeId, parentId];
+  // Incluir todos los parámetros usados por el hook, incluyendo role y userId
+  const queryKey = ['student', 'list', page, search, classId, gradeId, parentId, role, userId];
 
   // Prefetch
   await queryClient.prefetchQuery<StudentListResult>({
     queryKey: queryKey,
-    queryFn: () => getStudents({ page, search, classId, gradeId, parentId }),
+    queryFn: () => getStudents({ page, search, classId, gradeId, parentId, userRole: role, userId }),
   });
 
   // Dehydrate

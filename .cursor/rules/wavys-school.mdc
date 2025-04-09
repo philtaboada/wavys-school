@@ -1,0 +1,64 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Reglas del Proyecto wavys-school (Next.js 15 + React Query + Tailwind)
+
+Estas son las directrices principales para la IA al asistir en este proyecto. El objetivo es construir una aplicación robusta, escalable y de alto rendimiento para un colegio grande.
+
+## 1. Stack Tecnológico y Versiones Clave
+
+- **Framework Principal:** Next.js 15 (usando App Router).
+- **UI:** React (TypeScript). Priorizar Server Components.
+- **Manejo de Estado del Servidor / Caché:** React Query (TanStack Query v5+).
+- **Estilos:** Tailwind CSS v4+.
+- **Lenguaje:** TypeScript (con modo estricto habilitado).
+- **Versiones de Dependencias:** Sugerir fijar (pin) las versiones exactas de las dependencias clave (como `next`, `react`, `@tanstack/react-query`) en `package.json` para asegurar estabilidad y evitar roturas inesperadas por actualizaciones menores.
+
+## 2. Enfoque Crítico en Rendimiento y Optimización (¡Aplicación para Colegio Grande!)
+
+- **Priorizar Server Components (RSC):** Genera Server Components por defecto. Solo usa Client Components (`'use client'`) cuando sea estrictamente necesario para interactividad (hooks `useState`, `useEffect`, `event handlers`) o APIs de navegador. **Asegúrate de que la directiva `'use client'` esté presente en TODOS los componentes que la necesiten, incluso los de UI reutilizables si son interactivos.**
+- **Optimización Next.js:**
+    - Verifica el uso adecuado de las estrategias de caché de `fetch` de Next.js (incluyendo `revalidate`, `tags`).
+    - Verifica la implementación de `Suspense` para mejorar la carga percibida en Server Components que realizan fetching.
+    - Verifica el uso apropiado de `next/dynamic` para carga diferida (lazy loading) de componentes pesados o no críticos del lado del cliente.
+    - **Optimiza imágenes SIEMPRE usando el componente `<Image>` de `next/image`. Señala activamente cualquier uso de `<img>` estándar como un error a corregir.**
+- **Optimización React Query:**
+    - Define `queryKeys` de forma consistente y semántica.
+    - Configura `staleTime` y `cacheTime` conscientemente para balancear frescura de datos y minimización de requests. Un `staleTime` más largo puede ser beneficioso para datos que no cambian constantemente.
+    - Usa el hook `useMutation` para todas las operaciones de escritura (POST/PUT/DELETE) y maneja la invalidación de caché (`queryClient.invalidateQueries`) correctamente en `onSuccess` o `onSettled`.
+    - **Verifica si se puede usar la opción `select` en `useQuery` para extraer solo los datos necesarios del objeto devuelto, optimizando re-renders.**
+- **Optimización de Renderizado (Client Components):**
+    - Evita renders innecesarios usando `React.memo`, `useCallback` y `useMemo` donde aplique.
+    - Mantén los Client Components lo más pequeños y específicos posible.
+- **Optimización de Bundle:** Sé consciente del tamaño del bundle de JavaScript. Sugiere alternativas si una librería añade mucho peso sin un beneficio claro.
+
+## 3. Calidad de Código, Errores y Buenas Prácticas
+
+- **TypeScript Estricto:** Adhiérete a la configuración estricta de TypeScript (`"strict": true` en `tsconfig.json`). Evita el uso de `any`. Define tipos e interfaces claras.
+- **Detección Proactiva de Errores:** Al revisar o generar código, busca activamente:
+    - Posibles errores lógicos o de tiempo de ejecución.
+    - Código ineficiente o que pueda causar cuellos de botella.
+    - "Code smells" o anti-patrones comunes en React/Next.js.
+    - Violaciones de las reglas de ESLint/Prettier (asume que están configuradas).
+    - Uso incorrecto de APIs (React, Next.js, React Query).
+- **Corrección y Sugerencias:** No solo señales problemas, **propón soluciones claras y refactorizaciones** para mejorar el código. Explica el porqué de la sugerencia.
+- **Manejo de Errores:** Implementa `try...catch` en operaciones asíncronas (especialmente fetching y mutaciones). Usa Error Boundaries en React donde sea apropiado. Asegura que los errores se manejen elegantemente (feedback al usuario, logging).
+- **Legibilidad:** Escribe código claro, usa nombres descriptivos y añade comentarios JSDoc/TSDoc para lógica compleja, tipos y funciones exportadas.
+
+## 4. Uso Específico de Tailwind CSS
+
+- Usa clases de utilidad directamente en el JSX.
+- Para patrones de UI repetitivos, crea componentes React reutilizables en lugar de duplicar largas cadenas de clases de Tailwind.
+- Mantén el archivo `globals.css` mínimo, úsalo principalmente para variables CSS personalizadas o estilos base muy generales.
+- **Asegura que el archivo `tailwind.config.js` (o `.ts`) exista y que su propiedad `content` incluya correctamente las rutas a todos los archivos que usan clases de Tailwind (e.g., `app/**/*.{js,ts,jsx,tsx}`, `components/**/*.{js,ts,jsx,tsx}`) para una purga de CSS efectiva.**
+
+## 5. Contexto de la Aplicación
+
+- Recuerda que es una aplicación para un **colegio grande**. Esto implica potencialmente:
+    - Múltiples roles de usuario (estudiante, profesor, administrador, etc.).
+    - Necesidad de escalabilidad.
+    - **Consideraciones de accesibilidad (WCAG):** Al generar o revisar componentes de UI, verifica activamente las prácticas básicas de accesibilidad (atributos `alt` descriptivos en imágenes, HTML semántico, contraste de color, atributos `aria` donde sea necesario).
+
+**Instrucción General Final:** Sé un asistente proactivo. No esperes a que te pregunte explícitamente por optimizaciones o errores. Si ves algo mejorable en el código que se está discutiendo o generando, señálalo y ofrece una mejor alternativa alineada con estas reglas.

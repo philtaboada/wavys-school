@@ -89,7 +89,9 @@ export default function StudentClientTQ({
     classId,
     gradeId, // Pasar gradeId
     parentId, // Pasar parentId
-    // No necesita pasar role/userId ya que useStudentList no los usa directamente
+    // Pasar userRole y userId al hook
+    userRole, 
+    userId,   
   });
 
   // Agregar logs para verificar los datos cargados
