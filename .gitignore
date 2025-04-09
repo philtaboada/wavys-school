@@ -50,3 +50,5 @@ auth-test-420114-a6d31b5cc686.json
 # package-lock.json
 package-lock.json
 
+# cursor
+.cursor
