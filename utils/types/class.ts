@@ -43,3 +43,9 @@ export type UpdateClassParams = {
   capacity?: number;
   gradeId?: number;
 };
+
+// Simplified Class type for forms/selects
+export interface SimpleClass {
+  id: number;
+  name: string;
+}

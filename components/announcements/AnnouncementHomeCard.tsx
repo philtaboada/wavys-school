@@ -1,6 +1,6 @@
 "use client";
 
-import { Announcement } from "@/types/announcement";
+import { Announcement } from "@/utils/types/announcement";
 
 interface AnnouncementHomeCardProps {
   announcement: Announcement;

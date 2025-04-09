@@ -1,4 +1,3 @@
-
 import { z } from "zod";
 
 export const subjectSchema = z.object({
@@ -179,4 +178,32 @@ export const gradeSchema = z.object({
 });
 
 export type GradeSchema = z.infer<typeof gradeSchema>;
+
+// Esquema para el formulario de eventos
+export const eventSchema = z.object({
+  id: z.string().optional(), // ID es opcional, se usa para actualizaciones
+  title: z.string().min(3, "El título debe tener al menos 3 caracteres.").max(100, "El título no puede exceder los 100 caracteres."),
+  description: z.string().min(10, "La descripción debe tener al menos 10 caracteres.").max(500, "La descripción no puede exceder los 500 caracteres."),
+  startTime: z.date({
+    required_error: "La fecha y hora de inicio son obligatorias.",
+    invalid_type_error: "Formato de fecha y hora de inicio inválido.",
+  }),
+  endTime: z.date({
+    required_error: "La fecha y hora de fin son obligatorias.",
+    invalid_type_error: "Formato de fecha y hora de fin inválido.",
+  }),
+  classId: z.string().optional(), // ID de la clase es opcional y viene como string del select
+});
+
+export type EventSchema = z.infer<typeof eventSchema>;
+
+// Tipo para los datos del evento que se envían/reciben del backend
+export interface EventData {
+    id?: number; // El ID es numérico en la base de datos
+    title: string;
+    description: string;
+    startTime: string; // Usamos string ISO para la API
+    endTime: string;   // Usamos string ISO para la API
+    classId?: number | null; // El ID de la clase es numérico o null
+}
 

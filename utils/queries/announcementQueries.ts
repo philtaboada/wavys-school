@@ -18,11 +18,7 @@ export function useAnnouncementList(params: AnnouncementListParams & { userRole?
         .from('Announcement')
         .select(`
           id, title, description, date, classId,
-          class:classId (
-            id, 
-            name, 
-            grade:gradeId (id, level)
-          )
+          class:Class (id, name, grade:Grade (id, level))
         `, { count: 'exact' });
 
       // Aplicar filtros de búsqueda
@@ -78,7 +74,7 @@ export function useAnnouncementList(params: AnnouncementListParams & { userRole?
       }
 
       return { 
-        data: data as Announcement[], 
+        data: data as unknown as Announcement[], 
         count: count || 0 
       };
     },
@@ -129,7 +125,7 @@ export function useStudentAnnouncements(studentId: string, page: number = 1) {
       }
       
       return {
-        data: data as Announcement[],
+        data: data as unknown as Announcement[],
         count: count || 0
       };
     },

@@ -1,0 +1,262 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+## Context Rule: Supabase Database Structure (This Project)
+
+This project's database is hosted on **Supabase**, which uses PostgreSQL. The following definition describes the database structure (tables, columns, data types, relationships, constraints) as it is implemented specifically for **this application** running on Supabase.
+
+**Important Note on Syntax:** The definition below uses a model-like syntax purely for **illustrative purposes**. It's a way to clearly represent the actual PostgreSQL tables, columns, primary keys, foreign keys, unique constraints, nullable fields, enums, and relationships that exist in our Supabase database for this project. It does **not** imply the use of any specific ORM like Prisma.
+
+Please use this structural definition as the primary reference when:
+* Generating **SQL queries** for PostgreSQL.
+* Generating code using the **Supabase client library** (e.g., `supabase-js`).
+* Developing API endpoints or logic that interacts with the Supabase database.
+* Answering questions about the data structure, relationships between tables, and field types as they exist in this project's Supabase instance.
+* Understanding the overall data model of the application.
+
+**Database Schema Definition (Illustrative Representation of Supabase/Postgres Structure):**
+
+```sql
+-- // --- User & Access Tables ---
+-- // Table: Admin
+model Admin {
+  id       String @id // Represents: PRIMARY KEY (e.g., UUID or TEXT)
+  username String @unique // Represents: UNIQUE constraint, TEXT type
+}
+
+-- // --- Core Educational Tables ---
+-- // Table: Student
+model Student {
+  id          String     @id // Represents: PRIMARY KEY
+  username    String     @unique // Represents: UNIQUE constraint, TEXT type
+  name        String     // Represents: TEXT type, NOT NULL
+  surname     String     // Represents: TEXT type, NOT NULL
+  email       String?    @unique // Represents: TEXT type, UNIQUE constraint, NULLable
+  phone       String?    @unique // Represents: TEXT type, UNIQUE constraint, NULLable
+  address     String     // Represents: TEXT type, NOT NULL
+  img         String?    // Represents: TEXT type (e.g., URL), NULLable
+  bloodType   String     // Represents: TEXT type, NOT NULL
+  sex         UserSex    // Represents: Custom ENUM Type 'UserSex' ('MALE', 'FEMALE'), NOT NULL
+  createdAt   DateTime   @default(now()) // Represents: TIMESTAMPTZ type, DEFAULT now(), NOT NULL
+  birthday    DateTime   // Represents: DATE or TIMESTAMPTZ type, NOT NULL
+
+  // Relations / Foreign Keys
+  parentId    String     // Represents: FOREIGN KEY referencing Parent(id), NOT NULL
+  parent      Parent     @relation(fields: [parentId], references: [id]) // Describes the FK relationship
+  classId     Int        // Represents: FOREIGN KEY referencing Class(id), INTEGER type, NOT NULL
+  class       Class      @relation(fields: [classId], references: [id]) // Describes the FK relationship
+  gradeId     Int        // Represents: FOREIGN KEY referencing Grade(id), INTEGER type, NOT NULL
+  grade       Grade      @relation(fields: [gradeId], references: [id]) // Describes the FK relationship
+
+  // Related data (Implied by Foreign Keys in other tables pointing to Student)
+  attendances Attendance[]
+  results     Result[]
+}
+
+-- // Table: Teacher
+model Teacher {
+  id          String    @id // Represents: PRIMARY KEY
+  username    String    @unique // Represents: UNIQUE constraint, TEXT type
+  name        String    // Represents: TEXT type, NOT NULL
+  surname     String    // Represents: TEXT type, NOT NULL
+  email       String?   @unique // Represents: TEXT type, UNIQUE constraint, NULLable
+  phone       String?   @unique // Represents: TEXT type, UNIQUE constraint, NULLable
+  address     String    // Represents: TEXT type, NOT NULL
+  img         String?   // Represents: TEXT type, NULLable
+  bloodType   String    // Represents: TEXT type, NOT NULL
+  sex         UserSex   // Represents: Custom ENUM Type 'UserSex', NOT NULL
+  createdAt   DateTime  @default(now()) // Represents: TIMESTAMPTZ type, DEFAULT now(), NOT NULL
+  birthday    DateTime  // Represents: DATE or TIMESTAMPTZ type, NOT NULL
+  description String?   // Represents: TEXT type, NULLable
+
+  // Relations / Associations
+  // Implicit Many-to-Many with Subject (likely via a join table in Postgres)
+  subjects    Subject[]
+  // One-to-Many with Lesson (Lesson table has a teacherId FK)
+  lessons     Lesson[]
+  // One-to-Many with Class (Class table has an optional supervisorId FK)
+  classes     Class[]
+}
+
+-- // Table: Parent
+model Parent {
+  id        String   @id // Represents: PRIMARY KEY
+  username  String   @unique // Represents: UNIQUE constraint, TEXT type
+  name      String   // Represents: TEXT type, NOT NULL
+  surname   String   // Represents: TEXT type, NOT NULL
+  email     String?  @unique // Represents: TEXT type, UNIQUE constraint, NULLable
+  phone     String   @unique // Represents: TEXT type, UNIQUE constraint, NOT NULL
+  address   String   // Represents: TEXT type, NOT NULL
+  createdAt DateTime @default(now()) // Represents: TIMESTAMPTZ type, DEFAULT now(), NOT NULL
+
+  // Relations (Implied by Student.parentId FK)
+  students  Student[] // One-to-Many relationship
+}
+
+-- // --- Organizational Tables ---
+-- // Table: Grade
+model Grade {
+  id    Int @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY column
+  level Int @unique // Represents: INTEGER type, UNIQUE constraint, NOT NULL
+
+  // Related data (Implied by FKs in Student and Class)
+  students Student[]
+  classess Class[]
+}
+
+-- // Table: Class
+model Class {
+  id       Int    @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY column
+  name     String @unique // Represents: TEXT type, UNIQUE constraint, NOT NULL
+  capacity Int    // Represents: INTEGER type, NOT NULL
+
+  // Relations / Foreign Keys
+  supervisorId String?     // Represents: FOREIGN KEY referencing Teacher(id), NULLable
+  supervisor   Teacher?     @relation(fields: [supervisorId], references: [id]) // Describes the FK relationship
+  gradeId      Int         // Represents: FOREIGN KEY referencing Grade(id), NOT NULL
+  grade        Grade        @relation(fields: [gradeId], references: [id]) // Describes the FK relationship
+
+  // Related data (Implied by FKs in other tables)
+  lessons      Lesson[]
+  students     Student[]
+  events       Event[]
+  announcements Announcement[]
+}
+
+-- // Table: Subject
+model Subject {
+  id   Int    @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY column
+  name String @unique // Represents: TEXT type, UNIQUE constraint, NOT NULL
+
+  // Relations / Associations
+  // Implicit Many-to-Many with Teacher (likely via join table)
+  teachers Teacher[]
+  // One-to-Many with Lesson (Lesson.subjectId FK)
+  lessons  Lesson[]
+}
+
+-- // --- Academic Activity Tables ---
+-- // Table: Lesson
+model Lesson {
+  id        Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  name      String   // Represents: TEXT type, NOT NULL
+  day       Day      // Represents: Custom ENUM Type 'Day' ('MONDAY',...), NOT NULL
+  startTime DateTime // Represents: TIME or TIMESTAMPTZ type, NOT NULL
+  endTime   DateTime // Represents: TIME or TIMESTAMPTZ type, NOT NULL
+
+  // Relations / Foreign Keys
+  subjectId Int      // Represents: FOREIGN KEY referencing Subject(id), NOT NULL
+  subject   Subject    @relation(fields: [subjectId], references: [id])
+  classId   Int      // Represents: FOREIGN KEY referencing Class(id), NOT NULL
+  class     Class      @relation(fields: [classId], references: [id])
+  teacherId String   // Represents: FOREIGN KEY referencing Teacher(id), NOT NULL
+  teacher   Teacher    @relation(fields: [teacherId], references: [id])
+
+  // Related data (Implied by FKs in other tables)
+  exams       Exam[]
+  assignments Assignment[]
+  attendances Attendance[]
+}
+
+-- // Table: Exam
+model Exam {
+  id          Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  title       String   // Represents: TEXT type, NOT NULL
+  date        DateTime // Represents: TIMESTAMPTZ or DATE type, NOT NULL
+  maxScore    Int?     // Represents: INTEGER type, NULLable
+
+  // Relations / Foreign Keys
+  lessonId    Int      // Represents: FOREIGN KEY referencing Lesson(id), NOT NULL
+  lesson      Lesson   @relation(fields: [lessonId], references: [id])
+
+  // Related data (Implied by Result.examId FK)
+  results     Result[]
+}
+
+-- // Table: Assignment
+model Assignment {
+  id        Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  title     String   // Represents: TEXT type, NOT NULL
+  startDate DateTime // Represents: TIMESTAMPTZ type, NOT NULL
+  dueDate   DateTime // Represents: TIMESTAMPTZ type, NOT NULL
+
+  // Relations / Foreign Keys
+  lessonId Int      // Represents: FOREIGN KEY referencing Lesson(id), NOT NULL
+  lesson   Lesson   @relation(fields: [lessonId], references: [id])
+
+  // Related data (Implied by Result.assignmentId FK)
+  results  Result[]
+}
+
+-- // Table: Result
+model Result {
+  id    Int @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  score Int // Represents: INTEGER type, NOT NULL
+
+  // Relations / Foreign Keys - A result links to EITHER Exam OR Assignment
+  examId       Int?         // Represents: FOREIGN KEY referencing Exam(id), NULLable
+  exam         Exam?        @relation(fields: [examId], references: [id])
+  assignmentId Int?         // Represents: FOREIGN KEY referencing Assignment(id), NULLable
+  assignment   Assignment?  @relation(fields: [assignmentId], references: [id])
+  studentId    String       // Represents: FOREIGN KEY referencing Student(id), NOT NULL
+  student      Student      @relation(fields: [studentId], references: [id])
+  // NOTE: Ensuring only examId OR assignmentId is set usually requires a CHECK constraint in PostgreSQL or application logic.
+}
+
+-- // Table: Attendance
+model Attendance {
+  id      Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  date    DateTime // Represents: TIMESTAMPTZ type, NOT NULL (specific time of attendance)
+  present Boolean  // Represents: BOOLEAN type, NOT NULL
+
+  // Relations / Foreign Keys
+  studentId String   // Represents: FOREIGN KEY referencing Student(id), NOT NULL
+  student   Student @relation(fields: [studentId], references: [id])
+  lessonId  Int      // Represents: FOREIGN KEY referencing Lesson(id), NOT NULL
+  lesson    Lesson  @relation(fields: [lessonId], references: [id])
+}
+
+-- // --- Communication & Event Tables ---
+-- // Table: Event
+model Event {
+  id          Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  title       String   // Represents: TEXT type, NOT NULL
+  description String   // Represents: TEXT type, NOT NULL
+  startTime   DateTime // Represents: TIMESTAMPTZ type, NOT NULL
+  endTime     DateTime // Represents: TIMESTAMPTZ type, NOT NULL
+
+  // Relations / Foreign Keys
+  classId Int?      // Represents: FOREIGN KEY referencing Class(id), NULLable
+  class   Class? @relation(fields: [classId], references: [id])
+}
+
+-- // Table: Announcement
+model Announcement {
+  id          Int      @id @default(autoincrement()) // Represents: PRIMARY KEY, SERIAL or IDENTITY
+  title       String   // Represents: TEXT type, NOT NULL
+  description String   // Represents: TEXT type, NOT NULL
+  date        DateTime // Represents: TIMESTAMPTZ type, NOT NULL
+
+  // Relations / Foreign Keys
+  classId Int?      // Represents: FOREIGN KEY referencing Class(id), NULLable
+  class   Class? @relation(fields: [classId], references: [id])
+}
+
+
+-- // --- ENUM Type Definitions (as used in PostgreSQL) ---
+-- // ENUM Type: UserSex
+enum UserSex {
+  MALE
+  FEMALE
+}
+
+-- // ENUM Type: Day
+enum Day {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+}

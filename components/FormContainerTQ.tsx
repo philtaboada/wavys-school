@@ -10,12 +10,7 @@ import AttendanceFormTQ from "@/components/forms/AttendanceFormTQ";
 import TeacherFormTQ from "@/components/forms/TeacherFormTQ";
 import StudentFormTQ from "@/components/forms/StudentFormTQ";
 import AssignmentFormTQ from "@/components/forms/AssignmentFormTQ";
-import ExamForm from "./forms/ExamForm";
-import EventForm from "./forms/EventForm";
 import AnnouncementForm from "./forms/AnnouncementForm";
-import LessonForm from "./forms/LessonForm";
-import ResultForm from "./forms/ResultForm";
-import ClassForm from "./forms/ClassForm";
 import { createClient } from "@/utils/supabase/client";
 import { useDeleteAttendance } from "@/utils/queries/attendanceQueries";
 import { useDeleteTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
@@ -24,8 +19,12 @@ import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CircleFadingPlus, Pencil, Trash } from "lucide-react";
-import { Teacher, Student, Assignment, Exam } from "@/utils/types";
+import { Teacher } from "@/utils/types";
+import { Student } from "@/utils/types/student";
+import { Assignment } from "@/utils/types/assignment";
+import { Exam } from "@/utils/types/exam";
 import { Parent } from "@/utils/types/parent";
+import { Subject } from "@/utils/types/subject";
 import ParentsForm from "./forms/ParentsForm";
 import { useDeleteParent } from "@/utils/queries/parentQueries";
 import SubjectForm from "./forms/SubjectForm";
@@ -33,50 +32,28 @@ import { Attendance } from "@/utils/types/attendance";
 import { useDeleteSubject } from "@/utils/queries/subjectQueries";
 import { useDeleteClass } from "@/utils/queries/classQueries";
 import { useDeleteExam } from "@/utils/queries/examQueries";
-import { useDeleteLesson } from "@/utils/queries/lessonQueries";
-import { useDeleteEvent } from "@/utils/queries/eventQueries";
 import { useDeleteAnnouncement } from "@/utils/queries/announcementQueries";
-import { useDeleteResult } from "@/utils/queries/resultQueries";
+import { Announcement } from "@/utils/types/announcement";
+import { TableType } from "@/utils/types";
 
-// Tipos para las entidades relacionadas
-interface StudentData {
-  id: string;
-  name: string;
-  surname: string;
-}
-
-interface Subject {
-  id: number;
-  name: string;
-}
-
-interface Lesson {
-  id: number;
-  name: string;
-  subject?: Subject;
-}
-
-interface Class {
-  id: number;
-  name: string;
+interface RelatedData {
+  students?: Array<{ id: string; name: string; surname: string }>;
+  lessons?: Array<{ id: number; name: string; subject?: { id: number; name: string } }>;
+  subjects?: Array<{ id: number; name: string }>;
+  classes?: Array<{ id: number; name: string }>;
+  grades?: Array<{ id: number; name: string }>;
+  parents?: Array<{ id: string; name: string; surname: string }>;
+  teachers?: Array<{ id: string; name: string; surname: string }>;
 }
 
 // Props para el componente
 interface FormContainerTQProps {
-  table: string; // "attendance" | "teacher" | "student" | "assignment" | "grades" | "exams" etc.
-  type: "create" | "update" | "delete";
+  table: TableType;
+  type: 'create' | 'update' | 'delete';
   id?: number;
-  data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | Subject | undefined;
+  data?: Attendance | Teacher | Student | Assignment | Exam | TeacherDetails | Subject | Parent | undefined;
   extraProps?: {
-    relatedData?: {
-      students?: StudentData[];
-      lessons?: Lesson[];
-      subjects?: Subject[];
-      classes?: Class[];
-      grades?: { id: number; name: string }[];
-      parents?: { id: string; name: string; surname: string }[];
-      teachers?: { id: string; name: string; surname: string }[];
-    }
+    relatedData?: RelatedData;
   };
 }
 
@@ -88,15 +65,7 @@ export default function FormContainerTQ({
   extraProps
 }: FormContainerTQProps) {
   const [open, setOpen] = useState(false);
-  const [relatedData, setRelatedData] = useState<{
-    students?: StudentData[];
-    lessons?: Lesson[];
-    subjects?: Subject[];
-    classes?: Class[];
-    grades?: { id: number; name: string }[];
-    parents?: { id: string; name: string; surname: string }[];
-    teachers?: { id: string; name: string; surname: string }[];
-  }>(extraProps?.relatedData || {});
+  const [relatedData, setRelatedData] = useState<RelatedData>(extraProps?.relatedData || {});
   const [isLoading, setIsLoading] = useState(false);
   const deleteAttendanceMutation = useDeleteAttendance();
   const deleteTeacherMutation = useDeleteTeacher();
@@ -106,12 +75,13 @@ export default function FormContainerTQ({
   const deleteSubjectMutation = useDeleteSubject();
   const deleteClassMutation = useDeleteClass();
   const deleteExamMutation = useDeleteExam();
+  const deleteAnnouncementMutation = useDeleteAnnouncement();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
   const fetchRelatedData = async () => {
     //Si ya se tiene datos relacionados desde extraProps, no se necesita cargarlos
-    if(extraProps?.relatedData && Object.keys(extraProps.relatedData).length > 0) {
+    if (extraProps?.relatedData && Object.keys(extraProps.relatedData).length > 0) {
       if (table === 'student' && (!extraProps.relatedData.classes || extraProps.relatedData.classes.length === 0)) {
         console.log('No se encontraron clases en los datos proporcionados, cargando desde la base de datos...');
       } else {
@@ -125,241 +95,139 @@ export default function FormContainerTQ({
     setIsLoading(true);
     try {
       const supabase = createClient();
-      
-      if (table === "attendance") {
-        // Estudiantes
-        const { data: students } = await supabase
-          .from('Student')
-          .select('id, name, surname')
-          .order('surname');
-        
-        // Lecciones con sus materias
-        const { data: lessonsData } = await supabase
-          .from('Lesson')
-          .select('id, name, Subject:subjectId (id, name)');
-        
-        // Transformar los datos al formato esperado
-        const lessons = lessonsData?.map((lesson: any) => ({
-          id: lesson.id,
-          name: lesson.name,
-          subject: lesson.Subject
-        }));
-        
-        setRelatedData({
-          students: students || [],
-          lessons: lessons || []
-        });
-      } else if (table === "assignment") {
-        // Lecciones con sus materias para asignaciones
-        const { data: lessonsData } = await supabase
-          .from('Lesson')
-          .select('id, name, Subject:subjectId (id, name)');
-        
-        // Transformar los datos al formato esperado
-        const lessons = lessonsData?.map((lesson: any) => ({
-          id: lesson.id,
-          name: lesson.name,
-          subject: lesson.Subject
-        }));
-        
-        setRelatedData({
-          lessons: lessons || []
-        });
-      } else if (table === "teacher") {
-        // Asignaturas para profesores
-        const { data: subjects } = await supabase
-          .from('Subject')
-          .select('id, name')
-          .order('name');
-        
-        console.log("Subjects cargados en fetchRelatedData:", subjects);
-        
-        setRelatedData({
-          subjects: subjects || []
-        });
-      } else if (table === "student") {
-        // Clases para estudiantes
-        const { data: classes, error: classError } = await supabase
-          .from('Class')
-          .select('id, name')
-          .order('name');
-        if (classError) {
-          console.error('Error al cargar clases:', classError);
-        } else {
-          console.log("Clases cargadas", classes);
-        }
-        
-        // Grados para estudiantes
-        const { data: grades, error: gradeError } = await supabase
-          .from('Grade')
-          .select('id, level, name')
-          .order('level');
 
-        if (gradeError) {
-          console.error('Error al cargar grados:', gradeError);
-        } else {
-          console.log("Grados cargados", grades);
-        }
-        
-        // Padres para estudiantes
-        const { data: parents } = await supabase
-          .from('Parent')
-          .select('id, name, surname')
-          .order('surname');
-        
-        setRelatedData({
-          classes: classes || [],
-          grades: grades || [],
-          parents: parents || []
-        });
-      } else if (table === "subject") {
-        console.log('Cargando profesores para el formulario de asignaturas...');
+      switch (table) {
+        case "attendance": {
+          // Estudiantes
+          const { data: students } = await supabase
+            .from('Student')
+            .select('id, name, surname')
+            .order('surname');
 
-        // Profesores para asignaturas
-        const { data: teachersData, error: teachersError } = await supabase
-          .from('Teacher')
-          .select('id, name, surname')
-          .order('surname');
-        
-        if (teachersError) {
-          console.error('Error al cargar profesores:', teachersError);
-          throw new Error(`Error al cargar profesores: ${teachersError.message}`);
-        } else {
-          console.log('Profesores cargados:', teachersData);
-          setRelatedData(prev => ({
-            ...prev,
-            teachers: teachersData
+          // Lecciones con sus materias
+          const { data: lessonsData } = await supabase
+            .from('Lesson')
+            .select('id, name, Subject:subjectId (id, name)');
+
+          // Transformar los datos al formato esperado
+          const lessons = lessonsData?.map((lesson: any) => ({
+            id: lesson.id,
+            name: lesson.name,
+            subject: lesson.Subject
           }));
-        }
-        console.log('Profesores cargados:', teachersData?.length || 0);
-        setRelatedData(prev => ({
-          ...prev,
-          teachers: teachersData || []
-        }));
-      } else if (table === "class") {
-        console.log('Cargando datos relacionados para el formulario de clases...');
-      
-        // Cargar profesores para supervisores
-        const { data: teachersData, error: teachersError } = await supabase
-          .from('Teacher')
-          .select('id, name, surname')
-          .order('surname');
-      
-        if (teachersError) {
-          console.error('Error al cargar profesores:', teachersError);
-          throw new Error(`Error al cargar profesores: ${teachersError.message}`);
-        }
-      
-        // Cargar grados
-        const { data: gradesData, error: gradesError } = await supabase
-          .from('Grade')
-          .select('id, level')
-          .order('level');
-      
-        if (gradesError) {
-          console.error('Error al cargar grados:', gradesError);
-          throw new Error(`Error al cargar grados: ${gradesError.message}`);
+
+          setRelatedData({
+            students: students || [],
+            lessons: lessons || []
+          });
+          break;
         }
 
-        // Transformar los datos para incluir un nombre generado basado en el nivel
-        const formattedGrades = gradesData?.map(grade => ({
-          id: grade.id,
-          level: grade.level,
-          name: `Grado ${grade.level}` // Generar un nombre basado en el nivel  
-        })) || [];
+        case "assignment": {
+          // Lecciones con sus materias para asignaciones
+          const { data: lessonsData } = await supabase
+            .from('Lesson')
+            .select('id, name, Subject:subjectId (id, name)');
 
-        console.log('Datos relacionados cargados para clases:', {
-          teachers: teachersData?.length || 0,
-          grades: formattedGrades?.length || 0
-        });
-      
-        setRelatedData({
-          teachers: teachersData || [],
-          grades: formattedGrades || []
-        });
-      } else if (table === "lesson") {
-        console.log('Cargando datos relacionados para lecciones...');
-      
-        // Cargar clases
-        const { data: classesData, error: classesError } = await supabase
-          .from('Class')
-          .select('id, name')
-          .order('name');
-      
-        if (classesError) {
-          console.error('Error al cargar clases:', classesError);
-          throw new Error(`Error al cargar clases: ${classesError.message}`);
+          // Transformar los datos al formato esperado
+          const lessons = lessonsData?.map((lesson: any) => ({
+            id: lesson.id,
+            name: lesson.name,
+            subject: lesson.Subject
+          }));
+
+          setRelatedData({
+            lessons: lessons || []
+          });
+          break;
         }
-      
-        // Cargar profesores
-        const { data: teachersData, error: teachersError } = await supabase
-          .from('Teacher')
-          .select('id, name, surname')
-          .order('surname');
-      
-        if (teachersError) {
-          console.error('Error al cargar profesores:', teachersError);
-          throw new Error(`Error al cargar profesores: ${teachersError.message}`);
+
+        case "teacher": {
+          // Asignaturas para profesores
+          const { data: subjects } = await supabase
+            .from('Subject')
+            .select('id, name')
+            .order('name');
+
+          console.log("Subjects cargados en fetchRelatedData:", subjects);
+
+          setRelatedData({
+            subjects: subjects || []
+          });
+          break;
         }
-      
-        // Cargar asignaturas
-        const { data: subjectsData, error: subjectsError } = await supabase
-          .from('Subject')
-          .select('id, name')
-          .order('name');
-      
-        if (subjectsError) {
-          console.error('Error al cargar asignaturas:', subjectsError);
-          throw new Error(`Error al cargar asignaturas: ${subjectsError.message}`);
+
+        case "student": {
+          // Clases para estudiantes
+          const { data: classes, error: classError } = await supabase
+            .from('Class')
+            .select('id, name')
+            .order('name');
+          if (classError) {
+            console.error('Error al cargar clases:', classError);
+          } else {
+            console.log("Clases cargadas", classes);
+          }
+
+          // Grados para estudiantes
+          const { data: grades, error: gradeError } = await supabase
+            .from('Grade')
+            .select('id, level, name')
+            .order('level');
+
+          if (gradeError) {
+            console.error('Error al cargar grados:', gradeError);
+          } else {
+            console.log("Grados cargados", grades);
+          }
+
+          // Padres para estudiantes
+          const { data: parents } = await supabase
+            .from('Parent')
+            .select('id, name, surname')
+            .order('surname');
+
+          setRelatedData({
+            classes: classes || [],
+            grades: grades || [],
+            parents: parents || []
+          });
+          break;
         }
-      
-        console.log('Datos relacionados cargados para lecciones:', {
-          classes: classesData?.length || 0,
-          teachers: teachersData?.length || 0,
-          subjects: subjectsData?.length || 0
-        });
-      
-        setRelatedData({
-          classes: classesData || [],
-          teachers: teachersData || [],
-          subjects: subjectsData || []
-        });
-      } else if (table === "exam") {
-        console.log('Cargando datos relacionados para exámenes...');
-      
-        // Cargar lecciones con información relacionada
-        const { data: lessonsData, error: lessonsError } = await supabase
-          .from('Lesson')
-          .select(`
-            id, 
-            name,
-            Subject:subjectId (id, name),
-            Class:classId (id, name),
-            Teacher:teacherId (id, name, surname)
-          `)
-          .order('name');
-      
-        if (lessonsError) {
-          console.error('Error al cargar lecciones:', lessonsError);
-          throw new Error(`Error al cargar lecciones: ${lessonsError.message}`);
+
+        case "subject": {
+          // Profesores para asignaturas
+          const { data: teachers } = await supabase
+            .from('Teacher')
+            .select('id, name, surname')
+            .order('surname');
+
+          console.log("Teachers cargados para formulario de asignaturas:", teachers);
+
+          setRelatedData({
+            teachers: teachers || []
+          });
+          break;
         }
-      
-        // Transformar los datos para mostrar información más completa en el selector
-        const lessons = lessonsData?.map((lesson: any) => ({
-          id: lesson.id,
-          name: `${lesson.name} - ${lesson.Subject?.name || 'Sin asignatura'} (${lesson.Class?.name || 'Sin clase'})`,
-          subject: lesson.Subject,
-          class: lesson.Class,
-          teacher: lesson.Teacher
-        }));
-      
-        console.log('Datos relacionados cargados para exámenes:', {
-          lessons: lessons?.length || 0
-        });
-      
-        setRelatedData({
-          lessons: lessons || []
-        });
+
+        case "announcement": {
+          // Clases para anuncios
+          const { data: classes, error: classError } = await supabase
+            .from('Class')
+            .select('id, name')
+            .order('name');
+
+          if (classError) {
+            console.error('Error al cargar clases:', classError);
+          } else {
+            console.log("Clases cargadas para anuncios:", classes);
+          }
+
+          setRelatedData({
+            classes: classes || []
+          });
+          break;
+        }
       }
       
     } catch (error) {
@@ -378,260 +246,119 @@ export default function FormContainerTQ({
 
   // Manejar la eliminación
   const handleDelete = async () => {
-    console.log("handleDelete called for table:", table);
-    console.log("Data to delete:", data);
-    console.log("ID from props:", id);
-  
-    // Use either data.id or id from props
-    const itemId = data?.id || id;
-  
-    if (!itemId) {
-      console.error("No ID found in data object or props");
-      toast.error("Error: No se pudo identificar el elemento a eliminar");
+    if (!id) {
+      toast.error('ID no válido');
       return;
     }
-    
+
     const confirmed = window.confirm("¿Estás seguro de que deseas eliminar este registro?");
 
     if (!confirmed) return;
-    
-    try {
-      setIsLoading(true);
 
-      if (table === "parent") {
-        console.log("Intentando eliminar padre con ID:", id);
-      
-        // Verificar si el padre tiene estudiantes asociados
-        const supabase = createClient();
-        const { data: studentsData, error: countError, count } = await supabase
-          .from('Student')
-          .select('id', { count: 'exact', head: true })
-          .eq('parentId', id);
-        
-        if (countError) {
-          console.error("Error al verificar estudiantes:", countError);
-          toast.error(`Error al verificar estudiantes: ${countError.message}`);
-          setIsLoading(false);
-          return;
-        }
-      
-        if (count && count > 0) {
-          console.log(`El padre tiene ${count} estudiantes asociados, no se puede eliminar`);
-          toast.error('No se puede eliminar este padre porque tiene estudiantes asociados. Desvincule los estudiantes primero.');
-          setIsLoading(false);
-          return;
-        }
-      
-        // Continuar con la eliminación si no hay estudiantes
-        deleteParentMutation.mutate({ id: id.toString() }, {
-          onSuccess: () => {
-            console.log("Padre eliminado con éxito");
-            toast.success("Padre eliminado correctamente");
-            router.refresh();
-            router.push('/protected/list/parents');
-          },
-          onError: (error) => {
-            console.error("Error al eliminar padre:", error);
-            toast.error(`Error al eliminar padre: ${error.message}`);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "attendance") {
-        deleteAttendanceMutation.mutate({ id }, {
-          onSuccess: () => {
-            toast.success("Registro eliminado correctamente");
-            router.refresh();
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar: ${error.message}`);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "assignment") {
-        deleteAssignmentMutation.mutate({ id }, {
-          onSuccess: () => {
-            toast.success("Tarea eliminada correctamente");
-            router.refresh();
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar tarea: ${error.message}`);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "teacher") {
-        deleteTeacherMutation.mutate({ id: id.toString() }, {
-          onSuccess: () => {
-            toast.success("Profesor eliminado correctamente");
-            router.refresh();
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar profesor: ${error.message}`);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "student") {
-        deleteStudentMutation.mutate({ id: id.toString() }, {
-          onSuccess: () => {
-            toast.success("Estudiante eliminado correctamente");
-            router.refresh();
-            router.push('/protected/list/students');
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar estudiante: ${error.message}`);
-            console.error("Error deleting student:", error);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "subject") {
-        console.log("Deleting subject with ID:", itemId);
+    setIsLoading(true);
 
-        deleteSubjectMutation.mutate({ id: itemId }, {
-          onSuccess: () => {
-            toast.success("Asignatura eliminada correctamente");
-            router.refresh();
-            router.push('/protected/list/subjects');
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar asignatura: ${error.message}`);
-            console.error("Error deleting subject:", error);
+    const handleError = (error: Error, entityName: string) => {
+      console.error(`Error al eliminar ${entityName}:`, error);
+      toast.error(`Error al eliminar ${entityName}: ${error.message}`);
+      setIsLoading(false);
+    };
 
-            // Handle specific error for subjects with lessons
-            if (error.message === 'SUBJECT_HAS_LESSONS') {
-              toast.error('No se puede eliminar esta asignatura porque tiene lecciones asociadas');
-            }
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "class") {
-        console.log("Deleting class with ID:", itemId);
-        
-        deleteClassMutation.mutate({ id: itemId }, {
-          onSuccess: () => {
-            toast.success("Clase eliminada correctamente");
-            router.refresh();
-            router.push('/protected/list/classes');
-          },
-          onError: (error) => {
-            toast.error(`Error al eliminar clase: ${error.message}`);
-            console.error("Error deleting class:", error);
-          },
-          onSettled: () => {
-            setIsLoading(false);
-          }
-        });
-      } else if (table === "lesson") {
-        console.log("Intentando eliminar lección con ID:", id);
-      
-        // Verificar si la lección tiene tareas o exámenes asociados
-        const supabase = createClient();
-      
-        // Verificar tareas
-        const { count: assignmentCount, error: assignmentError } = await supabase
-          .from('Assignment')
-          .select('id', { count: 'exact', head: true })
-          .eq('lessonId', id);
-      
-        if (assignmentError) {
-          console.error("Error al verificar tareas:", assignmentError);
-          toast.error(`Error al verificar tareas: ${assignmentError.message}`);
-          setIsLoading(false);
-          return;
-        }
-      
-        // Verificar exámenes
-        const { count: examCount, error: examError } = await supabase
-          .from('Exam')
-          .select('id', { count: 'exact', head: true })
-          .eq('lessonId', id);
-      
-        if (examError) {
-          console.error("Error al verificar exámenes:", examError);
-          toast.error(`Error al verificar exámenes: ${examError.message}`);
-          setIsLoading(false);
-          return;
-        }
-      
-        // Si hay tareas o exámenes, no permitir eliminar
-        if ((assignmentCount && assignmentCount > 0) || (examCount && examCount > 0)) {
-          console.log(`La lección tiene ${assignmentCount} tareas y ${examCount} exámenes asociados`);
-          toast.error('No se puede eliminar esta lección porque tiene tareas o exámenes asociados');
-          setIsLoading(false);
-          return;
-        }
-      
-        // Eliminar la lección
-        const { error } = await supabase
-          .from('Lesson')
-          .delete()
-          .eq('id', id);
-      
-        if (error) {
-          console.error("Error al eliminar lección:", error);
-          toast.error(`Error al eliminar lección: ${error.message}`);
-          setIsLoading(false);
-          return;
-        }
-      
-        toast.success("Lección eliminada correctamente");
-        router.refresh();
-        setOpen(false);
-      } else if (table === "exam") {
-        console.log("Intentando eliminar examen con ID:", id);
-      
-        // Verificar si el examen tiene resultados asociados
-        const supabase = createClient();
-      
-        // Verificar resultados
-        const { count: resultCount, error: resultError } = await supabase
-          .from('Result')
-          .select('id', { count: 'exact', head: true })
-          .eq('examId', id);
-      
-        if (resultError) {
-          console.error("Error al verificar resultados:", resultError);
-          toast.error(`Error al verificar resultados: ${resultError.message}`);
-          setIsLoading(false);
-          return;
-        }
-      
-        // Si hay resultados, no permitir eliminar
-        if (resultCount && resultCount > 0) {
-          console.log(`El examen tiene ${resultCount} resultados asociados`);
-          toast.error('No se puede eliminar este examen porque tiene resultados asociados');
-          setIsLoading(false);
-          return;
-        }
-      
-        // Eliminar el examen
-        await deleteExamMutation.mutateAsync({ id: Number(id) }, {
-          onSuccess: () => {
-            toast.success("Examen eliminado correctamente");
-            router.refresh();
-            setOpen(false);
-            setIsLoading(false);
-          },
-          onError: (error) => {
-            console.error("Error al eliminar examen:", error);
-            toast.error(`Error al eliminar examen: ${error.message}`);
-            setIsLoading(false);
-          }
-        });
+    const handleSuccess = (message: string, redirectPath?: string) => {
+      toast.success(message);
+      router.refresh();
+      if (redirectPath) {
+        router.push(redirectPath);
       }
+      setIsLoading(false);
+    };
 
-      setOpen(false);
-    } catch (error: any) {
+    try {
+      switch (table) {
+        case 'parent': {
+          // Verificar si el padre tiene estudiantes asociados
+          const supabase = createClient();
+          const { error: countError, count } = await supabase
+            .from('Student')
+            .select('id', { count: 'exact', head: true })
+            .eq('parentId', id);
+
+          if (countError) {
+            handleError(countError, 'estudiantes');
+            return;
+          }
+
+          if (count && count > 0) {
+            toast.error('No se puede eliminar este padre porque tiene estudiantes asociados. Desvincule los estudiantes primero.');
+            setIsLoading(false);
+            return;
+          }
+
+          deleteParentMutation.mutate(
+            { id: id.toString() },
+            {
+              onSuccess: () => handleSuccess('Padre eliminado correctamente', '/protected/list/parents'),
+              onError: (error) => handleError(error, 'padre')
+            }
+          );
+          break;
+        }
+
+        case 'attendance':
+          deleteAttendanceMutation.mutate(
+            { id },
+            {
+              onSuccess: () => handleSuccess('Registro eliminado correctamente'),
+              onError: (error) => handleError(error, 'registro')
+            }
+          );
+          break;
+
+        case 'assignment':
+          deleteAssignmentMutation.mutate(
+            { id },
+            {
+              onSuccess: () => handleSuccess('Tarea eliminada correctamente'),
+              onError: (error) => handleError(error, 'tarea')
+            }
+          );
+          break;
+
+        case 'teacher':
+          deleteTeacherMutation.mutate(
+            { id: id.toString() },
+            {
+              onSuccess: () => handleSuccess('Profesor eliminado correctamente'),
+              onError: (error) => handleError(error, 'profesor')
+            }
+          );
+          break;
+
+        case 'student':
+          deleteStudentMutation.mutate(
+            { id: id.toString() },
+            {
+              onSuccess: () => handleSuccess('Estudiante eliminado correctamente', '/protected/list/students'),
+              onError: (error) => handleError(error, 'estudiante')
+            }
+          );
+          break;
+
+        case 'announcement':
+          deleteAnnouncementMutation.mutate(
+            { id },
+            {
+              onSuccess: () => handleSuccess('Anuncio eliminado correctamente'),
+              onError: (error) => handleError(error, 'anuncio')
+            }
+          );
+          break;
+
+        default:
+          toast.error(`Tipo de tabla no soportado: ${table}`);
+          setIsLoading(false);
+          break;
+      }
+    } catch (error) {
       console.error("Error en handleDelete:", error);
       toast.error("Error al procesar la solicitud de eliminación");
       setIsLoading(false);
@@ -640,109 +367,54 @@ export default function FormContainerTQ({
 
   // Renderizar el formulario según el tipo y la tabla
   const renderForm = () => {
-    // Verificar datos relacionados después de cargar
-    console.log("renderForm - Estado actual de relatedData:", relatedData);
-    
-    if (table === "attendance" && (type === "create" || type === "update")) {
-      return (
-        <AttendanceFormTQ
-          type={type}
-          data={data as Attendance}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
-    if (table === "assignment" && (type === "create" || type === "update")) {
-      return (
-        <AssignmentFormTQ
-          type={type}
-          data={data as Assignment}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
-    if (table === "teacher" && (type === "create" || type === "update")) {
-      return (
-        <TeacherFormTQ
-          type={type}
-          data={data as Teacher}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
-    if (table === "student" && (type === "create" || type === "update")) {
-      console.log("Renderizando StudentFormTQ con relatedData:", relatedData);
-      console.log("Clases disponibles:", relatedData.classes);
-      return (
-        <StudentFormTQ
-          type={type}
-          data={data as Student}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
+    // Solo mostrar formularios para create y update
+    if (type !== 'create' && type !== 'update') {
+      return null;
     }
 
-    if (table === "parent" && (type === "create" || type === "update")) {
-      return (
-        <ParentsForm
-          type={type}
-          data={data as Parent}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
+    // Props comunes para todos los formularios
+    const commonProps = {
+      type,
+      setOpen,
+      relatedData
+    };
 
-    if (table === "subject" && (type === "create" || type === "update")) {
-      return (
-        <SubjectForm
-          type={type}
-          data={data as Subject}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
+    // Renderizar el formulario según la tabla
+    switch (table) {
+      case 'teacher':
+        return <TeacherFormTQ {...commonProps} data={data as TeacherDetails} />;
 
-    if (table === "class" && (type === "create" || type === "update")) {
-      return (
-        <ClassForm
-          type={type}
-          data={data as Class}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
+      case 'student':
+        return <StudentFormTQ {...commonProps} data={data as Student} />;
 
-    if (table === "lesson" && (type === "create" || type === "update")) {
-      return (
-        <LessonForm
-          type={type}
-          data={data as any}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
-    }
+      case 'parent':
+        return <ParentsForm {...commonProps} data={data as Parent} />;
 
-    if (table === "exam" && (type === "create" || type === "update")) {
-      return (
-        <ExamForm
-          type={type}
-          data={data as any}
-          setOpen={setOpen}
-          relatedData={relatedData}
-        />
-      );
+      case 'attendance':
+        return <AttendanceFormTQ {...commonProps} data={data as Attendance} />;
+
+      case 'assignment':
+        return <AssignmentFormTQ {...commonProps} data={data as Assignment} />;
+
+      case 'subject':
+        return <SubjectForm {...commonProps} data={data as Subject} />;
+
+      case 'grades':
+      // Grados
+
+      case 'exams':
+      // Exámenes
+
+      case 'announcement':
+        return <AnnouncementForm {...commonProps} data={data as unknown as Announcement} />;
+
+      default:
+        return (
+          <div className="p-4 text-center text-red-500 dark:text-red-400">
+            Formulario no disponible para: {table}
+          </div>
+        );
     }
-    
-    // Agregar más formularios para otras tablas según sea necesario
-    return <div>Formulario no disponible para esta tabla</div>;
   };
 
   // Renderizar el botón según el tipo
@@ -773,7 +445,7 @@ export default function FormContainerTQ({
         </button>
       );
     }
-    
+
     return null;
   };
 
@@ -781,11 +453,11 @@ export default function FormContainerTQ({
     <>
       {renderButton()}
       {(type === "create" || type === "update") && (
-        <Dialog 
-          open={open} 
+        <Dialog
+          open={open}
           onOpenChange={setOpen}
         >
-          <DialogContent 
+          <DialogContent
             className="flex flex-col p-0 gap-0 border-none sm:max-w-[95vw] md:max-w-[90vw] lg:max-w-[85vw] xl:max-w-[1400px] w-[98vw] max-h-[90vh] shadow-2xl"
           >
             <DialogTitle className="sr-only">

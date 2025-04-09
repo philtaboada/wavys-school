@@ -2,7 +2,13 @@
 
 import { useSupabaseQuery, useSupabaseMutation } from './useSupabaseQuery';
 import { ITEM_PER_PAGE } from '@/lib/settings';
-import { Student, StudentListParams, StudentListResult, CreateStudentParams, UpdateStudentParams } from '@/utils/types/student';
+import { Student, StudentListParams as OriginalStudentListParams, StudentListResult, CreateStudentParams, UpdateStudentParams } from '@/utils/types/student';
+
+// Extender o redefinir StudentListParams para incluir rol y ID
+export interface StudentListParams extends OriginalStudentListParams {
+  userRole?: string;
+  userId?: string;
+}
 
 export type StudentDetails = {
   id: string;
@@ -95,10 +101,12 @@ export function useStudentDetails(studentId: string) {
  * Hook para obtener la lista de estudiantes con filtrado y paginación
  */
 export function useStudentList(params: StudentListParams) {
-  const { page, search, classId, gradeId, parentId } = params;
+  // Desestructurar todos los parámetros, incluyendo los nuevos
+  const { page, search, classId, gradeId, parentId, userRole, userId } = params; 
 
   return useSupabaseQuery<StudentListResult>(
-    ['student', 'list', page, search, classId, gradeId, parentId],
+    // Actualizar la queryKey para incluir userRole y userId
+    ['student', 'list', page, search, classId, gradeId, parentId, userRole, userId],
     async (supabase) => {
       // Construir la consulta base
       let query = supabase
@@ -109,6 +117,45 @@ export function useStudentList(params: StudentListParams) {
           Class(id, name),
           Parent(id, name, surname)
         `, { count: 'exact' });
+
+      // --- Inicio: Lógica de filtrado por Rol (copiada y adaptada de getStudents) ---
+      let teacherClassIds: number[] | null = null; // Para almacenar los IDs si es profesor
+
+      if (userRole === 'teacher' && userId) {
+        console.log(`[useStudentList Debug] Applying TEACHER filter for userId: ${userId}`);
+        const { data: lessonData, error: lessonError } = await supabase
+          .from('Lesson')
+          .select('classId')
+          .eq('teacherId', userId);
+
+        if (lessonError) {
+          console.error("Client-side error fetching teacher's classes:", lessonError);
+          // Lanzar error o devolver vacío? Coincidamos con servidor: devolver vacío.
+          // throw new Error(`Error fetching teacher's classes: ${lessonError.message}`);
+           return { data: [], count: 0 }; // Devolver vacío si falla la obtención de clases
+        }
+
+        if (!lessonData || lessonData.length === 0) {
+          console.log(`[useStudentList Debug] Teacher ${userId} has no assigned lessons.`);
+          return { data: [], count: 0 }; // Profesor no tiene clases
+        }
+
+        teacherClassIds = Array.from(new Set(lessonData.map(lesson => lesson.classId).filter(id => id != null)));
+
+        if (teacherClassIds.length === 0) {
+            console.log(`[useStudentList Debug] No valid class IDs found for teacher ${userId}.`);
+            return { data: [], count: 0 }; // No hay IDs válidos
+        }
+         console.log(`[useStudentList Debug] Teacher class IDs:`, teacherClassIds);
+         // Aplicaremos el filtro .in() más abajo, después de otros filtros
+
+      } else if (userRole && userRole !== 'admin') {
+          console.warn(`[useStudentList Debug] User role "${userRole}" has restricted access.`);
+          return { data: [], count: 0 }; // Otros roles no admin/teacher no ven nada
+      } else {
+          console.log(`[useStudentList Debug] Applying NO role filter (likely admin): ${userRole}`);
+      }
+      // --- Fin: Lógica de filtrado por Rol ---
 
       // Aplicar filtros de búsqueda
       if (search) {
@@ -128,6 +175,11 @@ export function useStudentList(params: StudentListParams) {
       // Filtrar por padre/madre
       if (parentId) {
         query = query.eq('parentId', parentId);
+      }
+
+      // Aplicar filtro de clase de profesor DESPUÉS de otros filtros
+      if (teacherClassIds !== null) {
+        query = query.in('classId', teacherClassIds);
       }
 
       // Paginación
