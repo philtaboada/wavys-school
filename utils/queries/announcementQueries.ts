@@ -13,74 +13,22 @@ export function useAnnouncementList(params: AnnouncementListParams & { userRole?
   return useSupabaseQuery<AnnouncementListResult>(
     ['announcement', 'list', page, search, classId, startDate, endDate, global, userRole, userId],
     async (supabase) => {
-      // Construir la consulta base
-      let query = supabase
-        .from('Announcement')
-        .select(`
-          id, title, description, date, classId,
-          class:Class (id, name, grade:Grade (id, level))
-        `, { count: 'exact' });
-
-      // Aplicar filtros de búsqueda
-      if (search) {
-        query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
-      }
-
-      // Filtrar por clase
-      if (classId) {
-        query = query.eq('classId', classId);
-      }
-
-      // Filtrar anuncios globales (sin clase asignada)
-      if (global === true) {
-        query = query.is('classId', null);
-      }
-
-      // Filtrar por fecha de inicio
-      if (startDate) {
-        query = query.gte('date', startDate);
-      }
-
-      // Filtrar por fecha de fin
-      if (endDate) {
-        query = query.lte('date', endDate);
-      }
-
-      // Filtros específicos según el rol del usuario
-      if (userRole && userRole !== 'admin' && userId) {
-        if (userRole === 'teacher') {
-          // Profesores ven anuncios globales y de clases donde enseñan
-          query = query.or(`classId.is.null,class.lessons.teacherId.eq.${userId}`);
-        } 
-        else if (userRole === 'student') {
-          // Estudiantes ven anuncios globales y de su clase
-          query = query.or(`classId.is.null,class.students.id.eq.${userId}`);
-        } 
-        else if (userRole === 'parent') {
-          // Padres ven anuncios globales y de clases de sus hijos
-          query = query.or(`classId.is.null,class.students.parentId.eq.${userId}`);
-        }
-      }
-
-      // Paginación
-      query = query
-        .range((page - 1) * ITEM_PER_PAGE, page * ITEM_PER_PAGE - 1)
-        .order('date', { ascending: false });
-
-      const { data, error, count } = await query;
+      const { data, error } = await supabase
+        .rpc('get_user_announcements_test', {
+          user_id: userId,
+          user_role: userRole,
+          p_class_id: classId,
+          p_search: search,
+          p_start_date: startDate,
+          p_end_date: endDate,
+          p_global: global
+        });
 
       if (error) {
-        throw new Error(`Error al obtener datos de anuncios: ${error.message}`);
+        throw new Error(`Error al obtener anuncios: ${error.message}`);
       }
 
-      return { 
-        data: data as unknown as Announcement[], 
-        count: count || 0 
-      };
-    },
-    {
-      staleTime: 1000 * 60 * 5, // 5 minutos
-      refetchOnWindowFocus: false
+      return { data, count: data.length };
     }
   );
 }
