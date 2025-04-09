@@ -7,45 +7,17 @@ import InputField from "../InputField";
 import { eventSchema, EventSchema, EventData } from "@/lib/formValidationSchemas";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
-// Asume que estos hooks existen y devuelven los tipos apropiados
-// import { useCreateEvent, useUpdateEvent } from "@/utils/queries/eventQueries";
-// import { useGetClasses } from "@/utils/queries/classQueries";
+import { useCreateEvent, useUpdateEvent } from "@/utils/queries/eventQueries";
+import { useClassList } from "@/utils/queries/classQueries";
 import { SimpleClass } from "@/utils/types/class"; // Importar el tipo SimpleClass
-
-// --- Mock Hooks (Reemplazar con los reales) ---
-// Elimina estos mocks cuando tengas los hooks reales implementados
-const useCreateEvent = () => ({
-  mutate: (data: any, options: any) => {
-    console.log("Mock Creando evento:", data);
-    setTimeout(() => options.onSuccess?.({ id: Date.now(), ...data }), 1000);
-    // Para simular error: setTimeout(() => options.onError?.(new Error("Error simulado al crear")), 1000);
-  },
-  isPending: false,
-});
-const useUpdateEvent = () => ({
-  mutate: (data: any, options: any) => {
-    console.log("Mock Actualizando evento:", data);
-    setTimeout(() => options.onSuccess?.(data), 1000);
-    // Para simular error: setTimeout(() => options.onError?.(new Error("Error simulado al actualizar")), 1000);
-  },
-  isPending: false,
-});
-const useGetClasses = () => ({
-  data: [
-    { id: 1, name: "Clase A" },
-    { id: 2, name: "Clase B" },
-    { id: 3, name: "Clase C (Ejemplo)" }
-  ] as SimpleClass[],
-  isLoading: false,
-  isError: false,
-});
-// --- Fin Mock Hooks ---
-
 
 interface EventFormProps {
   type: "create" | "update";
   data?: EventData; // Usar EventData para consistencia con la API
   setOpen: (open: boolean) => void;
+  relatedData?: {
+    classes?: SimpleClass[];
+  };
 }
 
 // Helper para formatear Date a 'yyyy-MM-ddThh:mm' para datetime-local
@@ -68,9 +40,17 @@ const EventForm = ({
   type,
   data,
   setOpen,
+  relatedData,
 }: EventFormProps) => {
   const router = useRouter();
-  const { data: classes, isLoading: isLoadingClasses } = useGetClasses(); // Obtener clases
+  const { data: classesData, isLoading: isLoadingClasses } = useClassList({
+    page: 1,
+    userRole: "admin",
+    userId: ""
+  });
+
+  const classes = classesData?.data || [];
+  // const isLoadingClasses = false;
   const createMutation = useCreateEvent();
   const updateMutation = useUpdateEvent();
 
@@ -89,8 +69,8 @@ const EventForm = ({
         title: data?.title || "",
         description: data?.description || "",
         // Usar helper para formatear fechas para el input datetime-local
-        startTime: data?.startTime ? new Date(data.startTime) : undefined,
-        endTime: data?.endTime ? new Date(data.endTime) : undefined,
+        startTime: data?.startTime ? new Date(data.startTime) : new Date(),
+        endTime: data?.endTime ? new Date(data.endTime) : new Date(Date.now() + 3600000),
         classId: data?.classId ? String(data.classId) : "" // classId es string en el form
       }
     }
@@ -107,25 +87,25 @@ const EventForm = ({
       }
 
       // Preparar los datos para la API
-      const eventApiData: EventData = {
+      const eventApiData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
         // Convertir Date a string ISO para enviar a la API
         startTime: formData.startTime.toISOString(),
         endTime: formData.endTime.toISOString(),
         // Convertir classId a número o null si está vacío/seleccionado "Ninguna"
-        classId: formData.classId ? parseInt(formData.classId, 10) : null,
+        classId: formData.classId || undefined,
       };
 
       console.log('Datos procesados para enviar:', eventApiData);
 
       if (type === 'create') {
         createMutation.mutate(eventApiData, {
-          onSuccess: (createdEvent: EventData) => {
+          onSuccess: (data) => {
             toast.success('Evento creado exitosamente');
-            console.log('Evento creado:', createdEvent);
-            reset();
+            console.log('Evento creado:', data);
             setOpen(false);
+            setTimeout(() => reset(), 100);
             router.refresh(); // Refrescar datos en la página
           },
           onError: (error: Error) => {
@@ -137,13 +117,13 @@ const EventForm = ({
       } else if (type === 'update' && data?.id) {
         updateMutation.mutate({
           ...eventApiData,
-          id: data.id, // Asegurar que el ID se incluya para la actualización
+          id: String(data.id), // Asegurar que el ID se incluya para la actualización
         }, {
-          onSuccess: (updatedEvent: EventData) => {
+          onSuccess: (data) => {
             toast.success("Evento actualizado exitosamente");
-            console.log('Evento actualizado:', updatedEvent);
-            reset(); // Resetear el form después de éxito
+            console.log('Evento actualizado:', data);
             setOpen(false);
+            setTimeout(() => reset(), 100);
             router.refresh(); // Refrescar datos en la página
           },
           onError: (error: Error) => {
@@ -252,14 +232,17 @@ const EventForm = ({
               <InputField
                 label="Fecha y Hora de Inicio *"
                 name="startTime"
-                register={register}
                 error={errors?.startTime}
                 type="datetime-local"
                 className="bg-gray-50 focus:bg-white"
+                register={register}
+                registerOptions={{
+                  setValueAs: (value) => value ? new Date(value) : undefined
+                }}
                 // Pasar el valor formateado al input
                 defaultValue={formatDateTimeLocal(data?.startTime)}
                 icon={
-                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-400">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line><circle cx="12" cy="16" r="1"></circle><path d="M12 12v4"></path>
                     </svg>
                 }
@@ -271,10 +254,13 @@ const EventForm = ({
               <InputField
                 label="Fecha y Hora de Fin *"
                 name="endTime"
-                register={register}
                 error={errors?.endTime}
                 type="datetime-local"
                 className="bg-gray-50 focus:bg-white"
+                register={register}
+                registerOptions={{
+                  setValueAs: (value) => value ? new Date(value) : undefined
+                }}
                  // Pasar el valor formateado al input
                 defaultValue={formatDateTimeLocal(data?.endTime)}
                 icon={
@@ -289,9 +275,9 @@ const EventForm = ({
             <div className="md:col-span-2 flex flex-col gap-2 transform transition-all duration-300 hover:-translate-y-1">
               <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
                 <span className="text-gray-400">
-                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 3h18v18H3zM8 8h8v8H8zM12 3v5m0 8v5M3 12h5m8 0h5"/>
-                    </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3h18v18H3zM8 8h8v8H8zM12 3v5m0 8v5M3 12h5m8 0h5"/>
+                  </svg>
                 </span>
                 Clase Asociada (Opcional)
               </label>

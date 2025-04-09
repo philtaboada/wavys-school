@@ -192,18 +192,18 @@ export const eventSchema = z.object({
     required_error: "La fecha y hora de fin son obligatorias.",
     invalid_type_error: "Formato de fecha y hora de fin inválido.",
   }),
-  classId: z.string().optional(), // ID de la clase es opcional y viene como string del select
+  classId: z.string().optional().transform(v => v || undefined), // ID de la clase es opcional y viene como string del select
 });
 
 export type EventSchema = z.infer<typeof eventSchema>;
 
 // Tipo para los datos del evento que se envían/reciben del backend
 export interface EventData {
-    id?: number; // El ID es numérico en la base de datos
-    title: string;
-    description: string;
-    startTime: string; // Usamos string ISO para la API
-    endTime: string;   // Usamos string ISO para la API
-    classId?: number | null; // El ID de la clase es numérico o null
+  id?: number; // El ID es numérico en la base de datos
+  title: string;
+  description: string;
+  startTime: string; // Usamos string ISO para la API
+  endTime: string;   // Usamos string ISO para la API
+  classId?: number | undefined; // El ID de la clase es numérico o null
 }
 

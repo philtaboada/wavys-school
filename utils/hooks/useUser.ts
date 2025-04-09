@@ -19,10 +19,10 @@ export function useUser(initialRole?: string, initialUserId?: string) {
   try {
     // Obtener el usuario actual desde la caché
     const user = queryClient.getQueryData(['currentUser']) as User | undefined;
-    
+
     // Obtener el perfil del usuario desde la caché
     const profile = queryClient.getQueryData(['userProfile']) as Profile | undefined;
-    
+
     // Si no hay usuario en la caché pero hay valores iniciales, crear un usuario básico
     const fallbackUser = !user && initialUserId ? {
       id: initialUserId,
@@ -37,10 +37,10 @@ export function useUser(initialRole?: string, initialUserId?: string) {
 
     // Logs para depuración
     if (process.env.NODE_ENV === 'development') {
-      console.log("useUser hook:", { 
-        cachedUser: user, 
-        fallbackUser, 
-        initialRole, 
+      console.log("useUser hook:", {
+        cachedUser: user,
+        fallbackUser,
+        initialRole,
         initialUserId,
         isAuthenticated
       });
@@ -49,7 +49,11 @@ export function useUser(initialRole?: string, initialUserId?: string) {
     return {
       user: finalUser || null,
       profile: profile || null,
-      isAuthenticated
+      isAuthenticated,
+      cachedUser: user,
+      fallbackUser,
+      initialRole,
+      initialUserId
     };
   } catch (error) {
     console.error("Error en useUser hook:", error);

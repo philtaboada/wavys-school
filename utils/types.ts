@@ -43,10 +43,10 @@ export interface Teacher {
   address?: string;
   img?: string;
   username?: string;
-  subjects?: Array<{name: string}>;
+  subjects?: Array<{ name: string }>;
   [key: string]: any;
-} 
+}
 
 // types for FormContainerTQ
 // Types
-export type TableType = 'attendance' | 'teacher' | 'student' | 'assignment' | 'grades' | 'exams' | 'parents' | 'subjects' | 'subject' | 'parent' | 'announcement';
+export type TableType = 'attendance' | 'teacher' | 'student' | 'assignment' | 'grades' | 'exams' | 'parents' | 'subjects' | 'subject' | 'parent' | 'announcement' | 'event';
