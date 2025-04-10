@@ -16,6 +16,7 @@ import { useDeleteAttendance } from "@/utils/queries/attendanceQueries";
 import { useDeleteTeacher, TeacherDetails } from "@/utils/queries/teacherQueries";
 import { useDeleteStudent } from "@/utils/queries/studentQueries";
 import { useDeleteAssignment } from "@/utils/queries/assignmentQueries";
+import { useDeleteEvent } from "@/utils/queries/eventQueries";
 import { toast } from "react-toastify";
 import { useRouter } from "next/navigation";
 import { CircleFadingPlus, Pencil, Trash } from "lucide-react";
@@ -26,6 +27,7 @@ import { Exam } from "@/utils/types/exam";
 import { Parent } from "@/utils/types/parent";
 import { Subject } from "@/utils/types/subject";
 import ParentsForm from "./forms/ParentsForm";
+import EventForm from "./forms/EventForm";
 import { useDeleteParent } from "@/utils/queries/parentQueries";
 import SubjectForm from "./forms/SubjectForm";
 import { Attendance } from "@/utils/types/attendance";
@@ -76,6 +78,7 @@ export default function FormContainerTQ({
   const deleteClassMutation = useDeleteClass();
   const deleteExamMutation = useDeleteExam();
   const deleteAnnouncementMutation = useDeleteAnnouncement();
+  const deleteEventMutation = useDeleteEvent();
   const router = useRouter();
 
   // Cargar datos relacionados al abrir el formulario
@@ -228,6 +231,24 @@ export default function FormContainerTQ({
           });
           break;
         }
+          
+        case "event": {
+          const { data: classes, error: classError } = await supabase
+          .from('Class')
+          .select('id, name')
+          .order('name');
+          
+          if(classError) {
+            console.error('Error al cargar clases para eventos:', classError);
+          } else {
+            console.log('Clases cargadas para eventos:', classes);
+          }
+
+          setRelatedData({
+            classes: classes || []
+          });
+          break;
+        }
       }
       
     } catch (error) {
@@ -351,12 +372,23 @@ export default function FormContainerTQ({
               onError: (error) => handleError(error, 'anuncio')
             }
           );
+          break;  
+
+        case 'event':
+          deleteEventMutation.mutate(
+            { id: id.toString() },
+            {
+              onSuccess: () => handleSuccess('Evento eliminado correctamente'),
+              onError: (error) => handleError(error, 'evento')
+            }
+          );
           break;
 
         default:
           toast.error(`Tipo de tabla no soportado: ${table}`);
           setIsLoading(false);
           break;
+          
       }
     } catch (error) {
       console.error("Error en handleDelete:", error);
@@ -403,7 +435,10 @@ export default function FormContainerTQ({
       // Grados
 
       case 'exams':
-      // Exámenes
+      // Exámenes      
+      
+      case 'event':
+      return <EventForm {...commonProps} data={data as any} />;
 
       case 'announcement':
         return <AnnouncementForm {...commonProps} data={data as unknown as Announcement} />;
