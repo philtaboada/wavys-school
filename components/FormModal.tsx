@@ -1,5 +1,6 @@
+"use client";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { createClient } from "@/utils/supabase/server";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import TeacherFormTQ from "./forms/TeacherFormTQ";
@@ -26,7 +27,6 @@ export type FormModalProps = {
 const FormModal = ({ table, type, data, id, relatedData }: FormModalProps) => {
   const [open, setOpen] = useState(true);
   const router = useRouter();
-  const supabase = createClient();
 
   const handleClose = () => {
     setOpen(false);
@@ -50,7 +50,7 @@ const FormModal = ({ table, type, data, id, relatedData }: FormModalProps) => {
       case "exam":
         return <ExamForm type={type === "delete" ? "update" : type} data={data} setOpen={setOpen} relatedData={relatedData} />;
       case "assignment":
-        return <AssignmentFormTQ type={type === "delete" ? "update" : type} data={data} setOpen={setOpen} />;
+        return <AssignmentFormTQ type={type === "delete" ? "update" : type} data={data} setOpen={setOpen} relatedData={relatedData} />;
       case "attendance":
         return <AttendanceFormTQ type={type === "delete" ? "update" : type} data={data} setOpen={setOpen} relatedData={relatedData} />;
       case "event":
