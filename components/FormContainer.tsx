@@ -1,5 +1,8 @@
+"use client";
+
 import FormModal from "./FormModal";
 import { createClient } from "@/utils/supabase/server";
+import { useState, useEffect } from "react";
 
 export type FormContainerProps = {
   table:
@@ -20,81 +23,88 @@ export type FormContainerProps = {
   id?: number | string;
 };
 
-const FormContainer = async ({ table, type, data, id }: FormContainerProps) => {
-  let relatedData = {};
+const FormContainer = ({ table, type, data, id }: FormContainerProps) => {
+  const [open, setOpen] = useState(true);
+  const [relatedData, setRelatedData] = useState<any>({});
 
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const role = (user?.user_metadata as { role?: string })?.role;
-  const currentUserId = user?.id;
+  const fetchRelatedData = async () => {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    const role = (user?.user_metadata as { role?: string })?.role;
+    const currentUserId = user?.id;
 
-  if (type !== "delete") {
-    switch (table) {
-      case "subject":
-        const { data: subjectTeachers } = await supabase
-          .from('teacher')
-          .select('id, name, surname');
-        relatedData = { teachers: subjectTeachers };
-        break;
-      case "class":
-        const { data: classGrades } = await supabase
-          .from('grade')
-          .select('id, level');
-        const { data: classTeachers } = await supabase
-          .from('teacher')
-          .select('id, name, surname');
-        relatedData = { teachers: classTeachers, grades: classGrades };
-        break;
-      case "teacher":
-        const { data: teacherSubjects } = await supabase
-          .from('subject')
-          .select('id, name');
-        relatedData = { subjects: teacherSubjects };
-        break;
-      case "student":
-        const { data: studentGrades } = await supabase
-          .from('grade')
-          .select('id, level');
-        const { data: studentClasses } = await supabase
-          .from('class')
-          .select('*, students(count)');
-        relatedData = { classes: studentClasses, grades: studentGrades };
-        break;
-      case "exam":
-        const { data: examLessons } = await supabase
-          .from('lesson')
-          .select('id, name')
-          .eq(role === "teacher" ? 'teacherId' : '', role === "teacher" ? currentUserId : '');
-        relatedData = { lessons: examLessons };
-        break;
-      case "announcement":
-        const { data: announcementClasses } = await supabase
-          .from('class')
-          .select('id, name')
-          .eq(role === "teacher" ? 'supervisorId' : '', role === "teacher" ? currentUserId : '');
-        relatedData = { classes: announcementClasses };
-        break;
-      case "attendance":
-        const { data: attendanceStudents } = await supabase
-          .from('student')
-          .select('id, name, surname');
-        
-        const { data: attendanceLessons } = await supabase
-          .from('lesson')
-          .select('id, name, subject:subjectId(id, name)');
-        
-        relatedData = { 
-          students: attendanceStudents, 
-          lessons: attendanceLessons 
-        };
-        break;
-      default:
-        break;
+    if (type !== "delete") {
+      switch (table) {
+        case "subject":
+          const { data: subjectTeachers } = await supabase
+            .from('teacher')
+            .select('id, name, surname');
+          setRelatedData({ teachers: subjectTeachers });
+          break;
+        case "class":
+          const { data: classGrades } = await supabase
+            .from('grade')
+            .select('id, level');
+          const { data: classTeachers } = await supabase
+            .from('teacher')
+            .select('id, name, surname');
+          setRelatedData({ teachers: classTeachers, grades: classGrades });
+          break;
+        case "teacher":
+          const { data: teacherSubjects } = await supabase
+            .from('subject')
+            .select('id, name');
+          setRelatedData({ subjects: teacherSubjects });
+          break;
+        case "student":
+          const { data: studentGrades } = await supabase
+            .from('grade')
+            .select('id, level');
+          const { data: studentClasses } = await supabase
+            .from('class')
+            .select('*, students(count)');
+          setRelatedData({ classes: studentClasses, grades: studentGrades });
+          break;
+        case "exam":
+          const { data: examLessons } = await supabase
+            .from('lesson')
+            .select('id, name')
+            .eq(role === "teacher" ? 'teacherId' : '', role === "teacher" ? currentUserId : '');
+          setRelatedData({ lessons: examLessons });
+          break;
+        case "announcement":
+          const { data: announcementClasses } = await supabase
+            .from('class')
+            .select('id, name')
+            .eq(role === "teacher" ? 'supervisorId' : '', role === "teacher" ? currentUserId : '');
+          setRelatedData({ classes: announcementClasses });
+          break;
+        case "attendance":
+          const { data: attendanceStudents } = await supabase
+            .from('student')
+            .select('id, name, surname');
+          
+          const { data: attendanceLessons } = await supabase
+            .from('lesson')
+            .select('id, name, subject:subjectId(id, name)');
+          
+          setRelatedData({ 
+            students: attendanceStudents, 
+            lessons: attendanceLessons 
+          });
+          break;
+        default:
+          break;
+      }
     }
-  }
+  };
+
+  useEffect(() => {
+    fetchRelatedData();
+  }, []);
 
   return (
-    <div className="">
+    <div className="w-full">
       <FormModal
         table={table}
         type={type}
